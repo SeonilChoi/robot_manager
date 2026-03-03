@@ -24,4 +24,4 @@ class Scheduler(ABC):
     def _progress_raw(self, t: float) -> float:
         if self.T_ == 0.0:
             return 0.0
-        return t / self.T_
+        return round(t / self.T_, 2)

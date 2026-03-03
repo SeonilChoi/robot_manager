@@ -9,6 +9,7 @@ from robot_manager.core.robot import (
     toPlannerType,
 )
 from robot_manager.robots.little_reader import LittleReader
+from robot_manager.scheduler.fsm_scheduler import FsmScheduler
 
 class RobotManager:
     def __init__(self, config_file: str) -> None:
