@@ -2,6 +2,6 @@
 
 Shared types and abstract interfaces.
 
-- **robot** – `Robot` (ABC), `RobotConfig`, `JointState`, `SchedulerType`, `PlannerType`.
-- **scheduler** – `Scheduler` abstract base and base timing helpers.
-- **planner** – `Planner` abstract base.
+- **robot** – `Robot` (ABC), `RobotConfig`, `JointState`, `SchedulerType`, `PlannerType`, `toSchedulerType`, `toPlannerType`.
+- **scheduler** – `Scheduler` (ABC): `reset()`, `step()`, `tick(action)`, `_progress_raw(t)`.
+- **planner** – `Planner` (ABC): `plan()`.

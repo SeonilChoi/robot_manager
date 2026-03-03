@@ -1,3 +1,3 @@
 # planner
 
-Motion planner implementations (e.g. RRT, PRM). Conform to the `core.planner.Planner` interface.
+Motion planner implementations (e.g. RRT, PRM). Subclass `core.planner.Planner` and implement `plan()`.

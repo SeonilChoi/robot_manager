@@ -21,3 +21,9 @@ mgr.control()
 ## Config
 
 YAML config must include a `robot` section with `id`, `number_of_joints`, `scheduler_type`, `planner_type`, and `type` (e.g. `little_reader`).
+
+## Test
+
+```bash
+python3 -m unittest discover -s tests -v
+```
