@@ -1,17 +1,14 @@
 from __future__ import annotations
-from dataclasses import dataclass
 
 import yaml
-import numpy as np
 
-from robot_manager.core.robot import RobotConfig, toSchedulerType, toPlannerType
-
-@dataclass
-class JointState:
-    id: np.ndarray
-    position: np.ndarray
-    velocity: np.ndarray
-    torque: np.ndarray
+from robot_manager.core.robot import (
+    JointState,
+    RobotConfig,
+    toSchedulerType,
+    toPlannerType,
+)
+from robot_manager.robots.little_reader import LittleReader
 
 class RobotManager:
     def __init__(self, config_file: str) -> None:
@@ -26,12 +23,18 @@ class RobotManager:
         if robot is None or not isinstance(robot, dict):
             raise ValueError("Config must contain a 'robot' section (dict)")
 
-        r_cfg = RobotConfig()
-        r_cfg.id = robot.get('id')
-        r_cfg.number_of_joints = robot.get('number_of_joints')
-        r_cfg.controller_indexes = robot.get('controller_indexes')
-        r_cfg.scheduler_type = toSchedulerType(robot.get('scheduler_type'))
-        r_cfg.planner_type = toPlannerType(robot.get('planner_type'))
+        for key in ('id', 'number_of_joints', 'scheduler_type', 'planner_type'):
+            if robot.get(key) is None:
+                raise ValueError(f"Config 'robot' must specify '{key}'")
+        st = robot.get('scheduler_type')
+        pt = robot.get('planner_type')
+        r_cfg = RobotConfig(
+            id=robot['id'],
+            number_of_joints=robot['number_of_joints'],
+            controller_indexes=robot.get('controller_indexes') or [],
+            scheduler_type=toSchedulerType(st),
+            planner_type=toPlannerType(pt),
+        )
 
         if robot.get('type') == 'little_reader':
             self.robot_ = LittleReader(r_cfg)
