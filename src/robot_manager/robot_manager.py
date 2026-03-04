@@ -5,18 +5,18 @@ import yaml
 from robot_manager.core.robot import (
     JointState,
     RobotConfig,
-    toSchedulerType,
-    toPlannerType,
+    to_scheduler_type,
+    to_planner_type,
 )
 from robot_manager.robots.little_reader import LittleReader
 from robot_manager.scheduler.fsm_scheduler import FsmScheduler
 
 class RobotManager:
     def __init__(self, config_file: str) -> None:
-        self.loadConfigurations(config_file)
+        self._load_configurations(config_file)
         self.initialize()
 
-    def loadConfigurations(self, config_file: str) -> None:
+    def _load_configurations(self, config_file: str) -> None:
         with open(config_file, 'r') as f:
             config = yaml.safe_load(f)
 
@@ -33,21 +33,21 @@ class RobotManager:
             id=robot['id'],
             number_of_joints=robot['number_of_joints'],
             controller_indexes=robot.get('controller_indexes') or [],
-            scheduler_type=toSchedulerType(st),
-            planner_type=toPlannerType(pt),
+            scheduler_type=to_scheduler_type(st),
+            planner_type=to_planner_type(pt),
         )
 
         if robot.get('type') == 'little_reader':
-            self.robot_ = LittleReader(r_cfg)
+            self._robot = LittleReader(r_cfg)
         else:
             raise ValueError(f"Invalid robot type: {robot.get('type')}")
 
     def initialize(self) -> None:
-        self.robot_.initialize()
+        self._robot.initialize()
 
     def control(self) -> JointState:
-        return self.robot_.control()
+        return self._robot.control()
 
     def update(self, status: JointState) -> None:
-        self.robot_.update(status)
+        self._robot.update(status)
     

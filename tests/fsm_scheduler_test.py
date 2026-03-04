@@ -32,26 +32,26 @@ class TestFsmScheduler(unittest.TestCase):
         self.scheduler = FsmScheduler(self.dt)
 
     def test_initial_state_is_stopped(self):
-        self.assertEqual(self.scheduler.state_, State.STOPPED)
+        self.assertEqual(self.scheduler._state, State.STOPPED)
 
     def test_step_increments_time(self):
         self.scheduler.step()
-        self.assertAlmostEqual(self.scheduler.t_, self.dt)
+        self.assertAlmostEqual(self.scheduler._t, self.dt)
         self.scheduler.step()
-        self.assertAlmostEqual(self.scheduler.t_, 2 * self.dt)
+        self.assertAlmostEqual(self.scheduler._t, 2 * self.dt)
 
     def test_tick_stopped_to_operating_on_move(self):
         changed, fsm_state = self.scheduler.tick(FsmAction(Action.MOVE, duration=1.0))
         self.assertTrue(changed)
         self.assertEqual(fsm_state.state, State.OPERATING)
-        self.assertEqual(self.scheduler.state_, State.OPERATING)
+        self.assertEqual(self.scheduler._state, State.OPERATING)
 
     def test_tick_operating_to_stopped_on_stop(self):
         self.scheduler.tick(FsmAction(Action.MOVE, duration=1.0))
         changed, fsm_state = self.scheduler.tick(FsmAction(Action.STOP, duration=0.0))
         self.assertTrue(changed)
         self.assertEqual(fsm_state.state, State.STOPPED)
-        self.assertEqual(self.scheduler.state_, State.STOPPED)
+        self.assertEqual(self.scheduler._state, State.STOPPED)
 
     def test_tick_invalid_transition_raises(self):
         self.scheduler.tick(FsmAction(Action.MOVE, duration=1.0))
@@ -59,22 +59,22 @@ class TestFsmScheduler(unittest.TestCase):
             self.scheduler.tick(FsmAction(Action.HOME, duration=1.0))
 
     def test_reset_sets_stopped_and_zero_time(self):
-        self.scheduler.state_ = State.OPERATING
-        self.scheduler.t_ = 1.0
+        self.scheduler._state = State.OPERATING
+        self.scheduler._t = 1.0
         self.scheduler.reset()
-        self.assertEqual(self.scheduler.state_, State.STOPPED)
-        self.assertEqual(self.scheduler.t_, 0.0)
+        self.assertEqual(self.scheduler._state, State.STOPPED)
+        self.assertEqual(self.scheduler._t, 0.0)
 
     def test_tick_home_until_progress_one_then_state_stopped(self):
         duration = 1.0
         self.scheduler.tick(FsmAction(Action.HOME, duration=duration))
-        self.assertEqual(self.scheduler.state_, State.HOMING)
+        self.assertEqual(self.scheduler._state, State.HOMING)
         for _ in range(20):
-            if self.scheduler.state_ == State.STOPPED:
+            if self.scheduler._state == State.STOPPED:
                 break
             self.scheduler.tick(FsmAction(Action.HOME, duration=duration))
             self.scheduler.step()
-        self.assertEqual(self.scheduler.state_, State.STOPPED)
+        self.assertEqual(self.scheduler._state, State.STOPPED)
 
 
 if __name__ == "__main__":

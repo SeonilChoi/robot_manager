@@ -5,9 +5,9 @@ from enum import Enum
 
 class Scheduler(ABC):
     def __init__(self, dt: float) -> None:
-        self.dt_ = dt
-        self.T_ = 0.0
-        self.t_ = 0.0
+        self._dt = dt
+        self._T = 0.0
+        self._t = 0.0
 
     @abstractmethod
     def reset(self) -> None:
@@ -22,6 +22,6 @@ class Scheduler(ABC):
         ...
 
     def _progress_raw(self, t: float) -> float:
-        if self.T_ == 0.0:
+        if self._T == 0.0:
             return 0.0
-        return round(t / self.T_, 2)
+        return round(t / self._T, 2)

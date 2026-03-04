@@ -44,35 +44,35 @@ def get_next_state(current: State, action: Action) -> State:
 class FsmScheduler(Scheduler):
     def __init__(self, dt: float) -> None:
         super().__init__(dt)
-        self.state_ = State.STOPPED
-        
+        self._state = State.STOPPED
+
     def reset(self) -> None:
-        self.state_ = State.STOPPED
-        self.t_ = 0.0
+        self._state = State.STOPPED
+        self._t = 0.0
 
     def step(self) -> None:
-        self.t_ += self.dt_
+        self._t += self._dt
 
     def tick(self, action: FsmAction) -> Tuple[bool, FsmState]:
-        self.T_ = action.duration
-        t = self.t_ + self.dt_ if self.T_ != 0.0 else 0.0
+        self._T = action.duration
+        t = self._t + self._dt if self._T != 0.0 else 0.0
 
         next_state = FsmState(
-            state=get_next_state(self.state_, action.action),
+            state=get_next_state(self._state, action.action),
             progress=self._progress_raw(t)
         )
 
         if next_state.state == State.INVALID:
-            raise ValueError(f"Invalid state transition.")
+            raise ValueError("Invalid state transition.")
 
-        if next_state.state != self.state_:
-            self.state_ = next_state.state
+        if next_state.state != self._state:
+            self._state = next_state.state
             return True, next_state
-        
+
         if next_state.progress == 1.0:
-            self.t_ = 0.0
+            self._t = 0.0
             if next_state.state == State.HOMING:
-                self.state_ = State.STOPPED
+                self._state = State.STOPPED
             return True, next_state
 
         return False, next_state

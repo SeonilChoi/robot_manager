@@ -7,14 +7,7 @@ from typing import List
 import numpy as np
 
 from robot_manager.core.scheduler import Scheduler
-from robot_manager.core.planner import Planner
-
-@dataclass
-class JointState:
-    id: np.ndarray
-    position: np.ndarray
-    velocity: np.ndarray
-    torque: np.ndarray
+from robot_manager.core.planner import Planner, JointState
 
 class SchedulerType(Enum):
     FSM = 0
@@ -24,7 +17,7 @@ class PlannerType(Enum):
     RRT = 0
     PRM = 1
 
-def toSchedulerType(scheduler_type: str) -> SchedulerType:
+def to_scheduler_type(scheduler_type: str) -> SchedulerType:
     if scheduler_type == 'fsm':
         return SchedulerType.FSM
     elif scheduler_type == 'gait':
@@ -32,7 +25,7 @@ def toSchedulerType(scheduler_type: str) -> SchedulerType:
     else:
         raise ValueError(f"Invalid scheduler type: {scheduler_type}")
 
-def toPlannerType(planner_type: str) -> PlannerType:
+def to_planner_type(planner_type: str) -> PlannerType:
     if planner_type == 'rrt':
         return PlannerType.RRT
     elif planner_type == 'prm':
@@ -50,11 +43,11 @@ class RobotConfig:
     
 class Robot(ABC):
     def __init__(self, config: RobotConfig) -> None:
-        self.id_                 = config.id
-        self.number_of_joints_   = config.number_of_joints
-        self.controller_indexes_ = config.controller_indexes
-        self.scheduler_type_     = config.scheduler_type
-        self.planner_type_       = config.planner_type
+        self._id = config.id
+        self._number_of_joints = config.number_of_joints
+        self._controller_indexes = config.controller_indexes
+        self._scheduler_type = config.scheduler_type
+        self._planner_type = config.planner_type
 
     @abstractmethod
     def initialize(self) -> None:
