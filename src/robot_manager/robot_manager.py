@@ -11,6 +11,8 @@ from robot_manager.core.robot import (
 from robot_manager.robots.little_reader import LittleReader
 from robot_manager.scheduler.fsm_scheduler import FsmScheduler
 
+import numpy as np
+
 class RobotManager:
     def __init__(self, config_file: str) -> None:
         self._load_configurations(config_file)
@@ -45,9 +47,18 @@ class RobotManager:
     def initialize(self) -> None:
         self._robot.initialize()
 
-    def control(self) -> JointState:
+    def control(self) -> JointState | None:
         return self._robot.control()
 
-    def update(self, status: JointState) -> None:
-        self._robot.update(status)
+    def update(self, status: JointState, obstacle: ObstacleState) -> None:
+        self._robot.update(status, obstacle)
+
+    def home(self) -> JointState | None:
+        pass
+
+    def stop(self) -> None:
+        pass
+
+    def move(self) -> None:
+        pass
     

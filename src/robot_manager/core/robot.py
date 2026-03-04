@@ -34,6 +34,30 @@ def to_planner_type(planner_type: str) -> PlannerType:
         raise ValueError(f"Invalid planner type: {planner_type}")
 
 @dataclass
+class Pose:
+    position: np.ndarray
+    orientation: np.ndarray
+
+@dataclass
+class Twist:
+    linear: np.ndarray
+    angular: np.ndarray
+
+@dataclass
+class Wrench:
+    force: np.ndarray
+    torque: np.ndarray
+
+@dataclass
+class RobotState:
+    id: int
+    number_of_joints: int
+    pose: Pose
+    twist: Twist
+    wrench: Wrench
+    joint_state: JointState
+
+@dataclass
 class RobotConfig:
     id: int
     number_of_joints: int
@@ -49,12 +73,18 @@ class Robot(ABC):
         self._scheduler_type = config.scheduler_type
         self._planner_type = config.planner_type
 
+        self._home_state: JointState | None = None
+        self._goal_state: JointState | None = None
+
+        self._current_robot_state: RobotState | None = None
+        self._current_obstacle_state: ObstacleState | None = None
+
     @abstractmethod
     def initialize(self) -> None:
         ...
 
     @abstractmethod
-    def control(self) -> JointState:
+    def control(self) -> JointState | None:
         ...
 
     @abstractmethod

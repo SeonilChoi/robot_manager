@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import numpy as np
+
 from robot_manager.core.robot import Robot, RobotConfig, JointState
 from robot_manager.core.robot import SchedulerType, PlannerType
 from robot_manager.scheduler.fsm_scheduler import FsmScheduler
@@ -20,8 +22,13 @@ class LittleReader(Robot):
         else:
             raise ValueError("Invalid planner type.")
 
-    def control(self) -> JointState:
-        pass
+    def control(self) -> JointState | None:
+        return JointState(
+            id=np.arange(self._number_of_joints),
+            position=np.random.rand(self._number_of_joints),
+            velocity=np.random.rand(self._number_of_joints),
+            torque=np.random.rand(self._number_of_joints),
+        )
 
     def update(self, status: JointState) -> None:
         pass
