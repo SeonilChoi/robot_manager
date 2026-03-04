@@ -50,13 +50,13 @@ class Planner(ABC):
             self._obstacle_state = obstacle_state
             self._is_planned = False
             self._is_running = True
-            self._cv.notify_one()
+            self._cv.notify()
 
     def request_stop(self) -> None:
         """Call before joining the planner thread (e.g. in derived destructor)."""
         with self._cv:
             self._stop_requested = True
-            self._cv.notify_one()
+            self._cv.notify()
 
     def is_planned(self) -> bool:
         return self._is_planned
