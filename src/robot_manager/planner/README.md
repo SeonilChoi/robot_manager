@@ -8,28 +8,28 @@ Motion planning in **joint space**: compute a path from current joint angles to 
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│  Your code                                                                   │
-│    plan(start, goal, obstacles)  ──►  returns immediately                  │
-│    while not is_planned(): sleep(...)                                        │
+│  Your code                                                                  │
+│    plan(start, goal, obstacles)  ──►  returns immediately                   │
+│    while not is_planned(): sleep(...)                                       │
 │    eval(progress, joint_command) ──►  fill joint_command along path         │
 └─────────────────────────────────────────────────────────────────────────────┘
                     │                                    │
                     ▼                                    ▼
-┌───────────────────────────────────┐    ┌───────────────────────────────────┐
+┌───────────────────────────────────┐    ┌────────────────────────────────────┐
 │  Planner (core.planner)           │    │  RrtPlanner (this package)         │
-│  • Worker thread runs _run()       │    │  • Subclass of Planner             │
-│  • _run() calls                    │    │  • generate_trajectory() calls   │
-│    generate_trajectory()           │◄───│    _rrt.run() and stores result   │
-│  • Sets _is_planned when done      │    │  • eval() uses stored trajectory  │
-└───────────────────────────────────┘    │    + quintic scaling + interpolate│
-                    │                    └───────────────────────────────────┘
+│  • Worker thread runs _run()      │    │  • Subclass of Planner             │
+│  • _run() calls                   │    │  • generate_trajectory() calls     │
+│    generate_trajectory()          │◄───│    _rrt.run() and stores result    │
+│  • Sets _is_planned when done     │    │  • eval() uses stored trajectory   │
+└───────────────────────────────────┘    │    + quintic scaling + interpolate │
+                    │                    └────────────────────────────────────┘
                     │                                    │
-                    │                    ┌───────────────────────────────────┐
-                    │                    │  RrtAlgorithm (utils.rrt)          │
-                    └──────────────────►│  • run(start, goal, obstacle_state)│
-                         (abstract)      │  • Returns (success, trajectory)  │
-                                         │  • No threading                    │
-                                         └───────────────────────────────────┘
+                    │                   ┌─────────────────────────────────────┐
+                    │                   │  RrtAlgorithm (utils.rrt)           │
+                    └──────────────────►│  • run(start, goal, obstacle_state) │
+                         (abstract)     │  • Returns (success, trajectory)    │
+                                        │  • No threading                     │
+                                        └─────────────────────────────────────┘
 ```
 
 **Data flow:**
