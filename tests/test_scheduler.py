@@ -9,6 +9,7 @@ from robot_manager.scheduler.fsm_scheduler import (
     get_next_state,
 )
 
+
 class TestGetNextState(unittest.TestCase):
     def test_stopped_transitions(self):
         self.assertEqual(get_next_state(State.STOPPED, Action.STOP), State.STOPPED)

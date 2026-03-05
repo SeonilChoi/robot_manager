@@ -1,19 +1,26 @@
+"""FSM scheduler: states STOPPED, OPERATING, HOMING; transition table and tick()."""
 from __future__ import annotations
+
 from enum import Enum
 from typing import Tuple
 
 from robot_manager.core import FsmAction, FsmState, Scheduler
 
+
 class State(Enum):
+    """FSM states."""
     STOPPED = 0
     OPERATING = 1
     HOMING = 2
     INVALID = 3
 
+
 class Action(Enum):
+    """FSM actions."""
     STOP = 0
     MOVE = 1
     HOME = 2
+
 
 TRANSITION_TABLE: dict[tuple[State, Action], State] = {
     (State.STOPPED, Action.STOP): State.STOPPED,
@@ -27,46 +34,75 @@ TRANSITION_TABLE: dict[tuple[State, Action], State] = {
     (State.HOMING, Action.HOME): State.HOMING,
 }
 
+
 def get_next_state(current: State, action: Action) -> State:
+    """Return next state from transition table; State.INVALID if no entry.
+
+    Parameters
+    ----------
+    current : State
+        Current FSM state.
+    action : Action
+        Incoming action.
+
+    Returns
+    -------
+    State
+        Next state (may be INVALID).
+    """
     return TRANSITION_TABLE.get((current, action), State.INVALID)
 
+
 def _to_action(a: int | Action) -> Action:
+    """Convert int to Action enum if needed."""
     return a if isinstance(a, Action) else Action(a)
 
 
 class FsmScheduler(Scheduler):
+    """Scheduler that advances FSM state and progress based on actions and time."""
+
     def __init__(self, dt: float) -> None:
+        """Initialize with time step and state STOPPED."""
         super().__init__(dt)
         self._state = State.STOPPED
 
     def reset(self) -> None:
+        """Set state to STOPPED and time to 0."""
         self._state = State.STOPPED
         self._t = 0.0
 
     def step(self) -> None:
+        """Advance internal time by _dt."""
         self._t += self._dt
 
     def tick(self, action: FsmAction) -> Tuple[bool, FsmState]:
+        """Apply action, compute next state and progress; raise if transition is INVALID.
+
+        Parameters
+        ----------
+        action : FsmAction
+            Action id and duration.
+
+        Returns
+        -------
+        Tuple[bool, FsmState]
+            (changed, fsm_state). changed is True if state or progress reached 1.0.
+        """
         self._T = action.duration
         t = self._t + self._dt if self._T != 0.0 else 0.0
-
         next_enum = get_next_state(self._state, _to_action(action.action))
         next_state = FsmState(
             state=next_enum.value,
             progress=self._progress_raw(t),
         )
-
         if next_enum == State.INVALID:
             raise ValueError("Invalid state transition.")
-
         if next_enum != self._state:
             self._state = next_enum
             return True, next_state
-
         if next_state.progress == 1.0:
             self._t = 0.0
             if next_enum == State.HOMING:
                 self._state = State.STOPPED
             return True, next_state
-
         return False, next_state

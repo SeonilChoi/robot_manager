@@ -1,12 +1,17 @@
+"""Abstract planner: background thread, plan(), eval(), generate_trajectory()."""
 from __future__ import annotations
-from abc import ABC, abstractmethod
 
+from abc import ABC, abstractmethod
 import threading
 
 from robot_manager.core import JointState, ObstacleState
 
+
 class Planner(ABC):
+    """Abstract planner: runs in a worker thread, plans from current to target with optional obstacles."""
+
     def __init__(self) -> None:
+        """Create lock, condition, and start the planning thread (daemon)."""
         self._lock = threading.Lock()
         self._cv = threading.Condition(self._lock)
         self._is_planned = False
@@ -20,7 +25,15 @@ class Planner(ABC):
 
     @abstractmethod
     def eval(self, progress: float, joint_command: JointState) -> None:
-        """Evaluate planned joint-space trajectory at progress; write into joint_command."""
+        """Evaluate planned trajectory at progress and write result into joint_command.
+
+        Parameters
+        ----------
+        progress : float
+            Progress in [0, 1] along the trajectory.
+        joint_command : JointState
+            Output; position/velocity/torque are written in place.
+        """
         ...
 
     def plan(
@@ -29,6 +42,17 @@ class Planner(ABC):
         target_state: JointState,
         obstacle_state: ObstacleState,
     ) -> None:
+        """Request a new plan from current to target. Non-blocking; runs in worker thread.
+
+        Parameters
+        ----------
+        current_state : JointState
+            Start configuration.
+        target_state : JointState
+            Goal configuration.
+        obstacle_state : ObstacleState
+            Obstacle state for collision checking.
+        """
         with self._cv:
             if self._is_running:
                 return
@@ -40,12 +64,13 @@ class Planner(ABC):
             self._cv.notify()
 
     def request_stop(self) -> None:
-        """Call before joining the planner thread (e.g. in derived destructor)."""
+        """Signal the worker thread to exit (e.g. before join)."""
         with self._cv:
             self._stop_requested = True
             self._cv.notify()
 
     def is_planned(self) -> bool:
+        """Return True if the last plan request completed successfully."""
         return self._is_planned
 
     @abstractmethod
@@ -55,15 +80,14 @@ class Planner(ABC):
         target_state: JointState,
         obstacle_state: ObstacleState,
     ) -> bool:
-        """Generate trajectory in joint space. Returns True if successful."""
+        """Generate trajectory from current to target. Returns True if successful."""
         ...
 
     def _run(self) -> None:
+        """Worker loop: wait for plan request, then call generate_trajectory."""
         while True:
             with self._cv:
-                self._cv.wait_for(
-                    lambda: self._stop_requested or self._is_running
-                )
+                self._cv.wait_for(lambda: self._stop_requested or self._is_running)
             if self._stop_requested:
                 break
             current = self._current_state
