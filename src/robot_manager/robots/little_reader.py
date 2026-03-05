@@ -29,6 +29,8 @@ class LittleReader(Robot):
             orientation=np.array([0, 0, 0]),
         )
 
+        self._Tws = transformation_matrix(self._world_frame)
+
         self._l1 = 0.1
         self._l2 = 0.1
         self._l3 = 0.4
@@ -84,4 +86,4 @@ class LittleReader(Robot):
 
     def _fk(self, M: np.ndarray, Slist: np.ndarray, thetalist: np.ndarray) -> np.ndarray:
         """Forward kinematics helper (product of exponentials). Not implemented."""
-        raise NotImplementedError
+        FKinSpace(M, Slist.T, thetalist)

@@ -20,7 +20,7 @@ flowchart LR
 | **Install** | `pip install -e .` |
 | **Run** | `RobotManager(config_path)` → `initialize()` → loop: `control()` / `update(status, obstacle)` |
 | **Tests** | `python3 -m pytest tests/ -v` |
-| **GUI** | `python tests/gui_robot_manager.py` (config: `config/robot_config.yaml`) |
+| **GUI** | `python tests/test_gui.py` (config: `config/robot_config.yaml`) |
 
 ---
 
@@ -76,7 +76,7 @@ robot:
 |------|-------------|
 | `test_scheduler.py` | FSM scheduler state transitions, tick, HOME → STOPPED |
 | `test_planner.py` | RRT algorithm and planner; **per–config-space visualizations** (output: `tests/visualizations/*.png`) |
-| `test_gui.py` | Config file existence and RobotManager init |
+| `test_gui.py` | Config existence, RobotManager init; same file runs GUI: `python tests/test_gui.py` |
 
 ```bash
 python3 -m pytest tests/ -v
@@ -86,7 +86,7 @@ python3 -m pytest tests/ -v
 
 ## GUI
 
-Requires `config/robot_config.yaml` to run.
+Run with `python tests/test_gui.py`. Requires `config/robot_config.yaml`.
 
 | Button | Action |
 |--------|--------|
