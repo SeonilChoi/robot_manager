@@ -3,11 +3,11 @@ from __future__ import annotations
 
 import copy
 import random
-from typing import Any, Callable
+from typing import Callable
 
 import numpy as np
 
-from robot_manager.core.planner import JointState
+from robot_manager.core import JointState, ObstacleState
 
 PI = 3.14159265358979323846
 MAX_ITERATIONS = 5000
@@ -80,8 +80,8 @@ class RrtAlgorithm:
         self._seed = seed
         self._joint_min: np.ndarray | None = None
         self._joint_max: np.ndarray | None = None
-        self._config_collision: Callable[[JointState, Any], bool] | None = None
-        self._segment_collision: Callable[[JointState, JointState, Any], bool] | None = None
+        self._config_collision: Callable[[JointState, ObstacleState], bool] | None = None
+        self._segment_collision: Callable[[JointState, JointState, ObstacleState], bool] | None = None
 
     def set_joint_limits(
         self,
@@ -93,8 +93,8 @@ class RrtAlgorithm:
 
     def set_collision_checker(
         self,
-        config_fn: Callable[[JointState, Any], bool] | None = None,
-        segment_fn: Callable[[JointState, JointState, Any], bool] | None = None,
+        config_fn: Callable[[JointState, ObstacleState], bool] | None = None,
+        segment_fn: Callable[[JointState, JointState, ObstacleState], bool] | None = None,
     ) -> None:
         self._config_collision = config_fn
         self._segment_collision = segment_fn
@@ -103,7 +103,7 @@ class RrtAlgorithm:
         self,
         start: JointState,
         goal: JointState,
-        obstacle_state: Any,
+        obstacle_state: ObstacleState,
     ) -> tuple[bool, list[tuple[float, JointState]]]:
         """
         Run RRT from start to goal. Returns (success, trajectory).

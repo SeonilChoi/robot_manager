@@ -4,8 +4,9 @@ import unittest
 
 import numpy as np
 
-from robot_manager.core.planner import JointState, Obstacle
-from robot_manager.planner import RrtPlanner, RrtAlgorithm
+from robot_manager.core import JointState, ObstacleState
+from robot_manager.planner import RrtPlanner
+from robot_manager.utils import RrtAlgorithm
 from robot_manager.utils.rrt import (
     quintic_time_scaling,
     joint_distance,
@@ -209,7 +210,7 @@ class TestRrtPlannerVisualization2Dof(unittest.TestCase):
         L1, L2 = 1.0, 1.0
         start = _make_joint_state([0.5, 0.5])
         goal = _make_joint_state([-0.4, 0.8])
-        obstacles = [Obstacle(position=np.array([2.0, 0.75]), radius=0.2)]
+        obstacles = [ObstacleState(position=np.array([2.0, 0.75]), radius=0.2)]
 
         def config_collision(q: JointState, obs_list):
             return _link_collision_2dof(q, obs_list, L1, L2, link_radius=0.12)
@@ -361,7 +362,7 @@ class TestRrtPlannerVisualization3Dof(unittest.TestCase):
         start = _make_joint_state([0.3, 0.4, 0.2])
         goal = _make_joint_state([-0.2, 0.6, 0.5])
         obstacles = [
-            Obstacle(position=np.array([0.8, 0.5, 0.3]), radius=0.2),
+            ObstacleState(position=np.array([0.8, 0.5, 0.3]), radius=0.2),
         ]
 
         link_radius = 0.12

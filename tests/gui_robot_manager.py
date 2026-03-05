@@ -6,7 +6,7 @@ from tkinter import ttk, messagebox
 
 import numpy as np
 
-from robot_manager.core.robot import JointState
+from robot_manager import JointState
 
 # Resolve config path: project_root/config/robot_config.yaml
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
@@ -15,7 +15,7 @@ CONFIG_PATH = PROJECT_ROOT / "config" / "robot_config.yaml"
 
 def main() -> None:
     try:
-        from robot_manager.robot_manager import RobotManager
+        from robot_manager import RobotManager
     except ImportError:
         messagebox.showerror("Import Error", "Could not import RobotManager. Run from project root.")
         return

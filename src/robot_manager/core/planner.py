@@ -1,22 +1,9 @@
 from __future__ import annotations
 from abc import ABC, abstractmethod
-from dataclasses import dataclass
-from typing import Any
 
-import numpy as np
 import threading
 
-@dataclass
-class JointState:
-    id: np.ndarray
-    position: np.ndarray
-    velocity: np.ndarray
-    torque: np.ndarray
-
-@dataclass
-class Obstacle:
-    position: np.ndarray
-    radius: float
+from robot_manager.core import JointState, ObstacleState
 
 class Planner(ABC):
     def __init__(self) -> None:
@@ -27,7 +14,7 @@ class Planner(ABC):
         self._stop_requested = False
         self._current_state: JointState | None = None
         self._target_state: JointState | None = None
-        self._obstacle_state: Any = None
+        self._obstacle_state: ObstacleState | None = None
         self._planner_thread = threading.Thread(target=self._run, daemon=True)
         self._planner_thread.start()
 
@@ -40,7 +27,7 @@ class Planner(ABC):
         self,
         current_state: JointState,
         target_state: JointState,
-        obstacle_state: Any,
+        obstacle_state: ObstacleState,
     ) -> None:
         with self._cv:
             if self._is_running:
@@ -66,7 +53,7 @@ class Planner(ABC):
         self,
         current_state: JointState,
         target_state: JointState,
-        obstacle_state: Any,
+        obstacle_state: ObstacleState,
     ) -> bool:
         """Generate trajectory in joint space. Returns True if successful."""
         ...

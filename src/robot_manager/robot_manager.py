@@ -2,11 +2,13 @@ from __future__ import annotations
 
 import yaml
 
-from robot_manager.core.robot import (
+from robot_manager.core import (
     JointState,
+    ObstacleState,
     RobotConfig,
-    to_scheduler_type,
     to_planner_type,
+    to_robot_type,
+    to_scheduler_type,
 )
 from robot_manager.robots.little_reader import LittleReader
 from robot_manager.scheduler.fsm_scheduler import FsmScheduler
@@ -37,6 +39,7 @@ class RobotManager:
             controller_indexes=robot.get('controller_indexes') or [],
             scheduler_type=to_scheduler_type(st),
             planner_type=to_planner_type(pt),
+            robot_type=to_robot_type(robot.get('type') or 'little_reader'),
         )
 
         if robot.get('type') == 'little_reader':

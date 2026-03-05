@@ -1,7 +1,8 @@
 from __future__ import annotations
 from abc import ABC, abstractmethod
-from dataclasses import dataclass
-from enum import Enum
+from typing import Tuple
+
+from robot_manager.core import FsmAction, FsmState
 
 class Scheduler(ABC):
     def __init__(self, dt: float) -> None:
@@ -18,7 +19,7 @@ class Scheduler(ABC):
         ...
 
     @abstractmethod
-    def tick(self, action):
+    def tick(self, action: FsmAction) -> Tuple[bool, FsmState]:
         ...
 
     def _progress_raw(self, t: float) -> float:

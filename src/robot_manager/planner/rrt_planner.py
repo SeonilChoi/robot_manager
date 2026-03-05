@@ -2,13 +2,12 @@
 from __future__ import annotations
 
 import threading
-from typing import Any, Callable
+from typing import Callable
 
 import numpy as np
 
-from robot_manager.core.planner import JointState, Planner
-from robot_manager.utils.rrt import RrtAlgorithm, interpolate, quintic_time_scaling
-
+from robot_manager.core import JointState, ObstacleState, Planner
+from robot_manager.utils import interpolate, quintic_time_scaling, RrtAlgorithm
 
 class RrtPlanner(Planner):
     """Planner that runs RrtAlgorithm in the worker thread (plan → _run → generate_trajectory)."""
@@ -22,8 +21,8 @@ class RrtPlanner(Planner):
 
     def set_collision_checker(
         self,
-        config_fn: Callable[[JointState, Any], bool] | None = None,
-        segment_fn: Callable[[JointState, JointState, Any], bool] | None = None,
+        config_fn: Callable[[JointState, ObstacleState], bool] | None = None,
+        segment_fn: Callable[[JointState, JointState, ObstacleState], bool] | None = None,
     ) -> None:
         """Set optional collision checkers: config_fn(q, obstacle_state), segment_fn(a, b, obstacle_state)."""
         self._rrt.set_collision_checker(config_fn=config_fn, segment_fn=segment_fn)
@@ -40,7 +39,7 @@ class RrtPlanner(Planner):
         self,
         current_state: JointState,
         target_state: JointState,
-        obstacle_state: Any,
+        obstacle_state: ObstacleState,
     ) -> bool:
         success, traj = self._rrt.run(current_state, target_state, obstacle_state)
         with self._trajectory_mutex:
