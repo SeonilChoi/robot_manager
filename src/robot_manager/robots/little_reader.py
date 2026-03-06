@@ -5,21 +5,10 @@ from typing import List
 
 import numpy as np
 
-from robot_manager.core import (
-    FsmAction,
-    JointState,
-    ObstacleState,
-    Pose,
-    PlannerType,
-    Robot,
-    RobotConfig,
-    RobotState,
-    SchedulerType,
-)
-from robot_manager.scheduler.fsm_scheduler import Action, FsmScheduler
+from robot_manager.types import FsmAction, JointState, ObstacleState, Pose, PlannerType, Robot, RobotConfig, SchedulerType
+from robot_manager.core.scheduler import FsmScheduler
 from robot_manager.planner.rrt_planner import RrtPlanner
-from robot_manager.utils import transformation_matrix
-
+from robot_manager.utils.utils import transformation_matrix
 
 class LittleReader(Robot):
     """Robot implementation with FSM scheduler and RRT planner; FK/IK stubs."""

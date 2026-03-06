@@ -79,22 +79,22 @@ class RobotManager:
         """Start home motion."""
         self._robot._is_homing = True
         self._robot._is_moving = False
-        self._robot._is_operating = False
+        self._robot._is_auto   = False
 
     def stop(self) -> None:
         """Stop motion."""
         self._robot._is_homing = False
         self._robot._is_moving = False
-        self._robot._is_operating = False
+        self._robot._is_auto   = False
         
     def move(self) -> None:
         """Start or continue move."""
         self._robot._is_homing = False
         self._robot._is_moving = True
-        self._robot._is_operating = False
+        self._robot._is_auto   = False
 
     def auto(self) -> None:
         """Start operating."""
         self._robot._is_homing = False
         self._robot._is_moving = False
-        self._robot._is_operating = True
+        self._robot._is_auto   = True

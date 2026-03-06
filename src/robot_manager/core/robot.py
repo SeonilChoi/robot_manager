@@ -6,13 +6,7 @@ from typing import List
 
 import numpy as np
 
-from robot_manager.core import (
-    JointState,
-    ObstacleState,
-    Pose,
-    RobotConfig,
-    RobotState,
-)
+from robot_manager.types import JointState, SphereObstacleState, CircleObstacleState, RobotConfig
 
 
 class Robot(ABC):
@@ -23,21 +17,14 @@ class Robot(ABC):
         self._id = config.id
         self._number_of_joints = config.number_of_joints
         self._controller_indexes = config.controller_indexes
-        self._scheduler_type = config.scheduler_type
-        self._planner_type = config.planner_type
         
-        self._world_frame: Pose | None = None
-        
-        self._current_progress = 0.0
         self._current_joint_state: JointState | None = None 
-        self._current_joint_coordinates: np.ndarray | None = None
-        self._current_robot_state: RobotState | None = None
-        self._current_obstacles: List[ObstacleState] | None = None
+        self._current_obstacles: List[SphereObstacleState | CircleObstacleState] | None = None
 
-        self._is_homing    = False
-        self._is_moving    = False
-        self._is_operating = False
-        self._is_stop      = True
+        self._is_homing = False
+        self._is_moving = False
+        self._is_auto   = False
+        self._is_stop   = True
         
     @abstractmethod
     def initialize(self) -> None:

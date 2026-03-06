@@ -1,34 +1,64 @@
 # utils
 
-RRT algorithm, interpolation, distance, steer, and geometry/kinematics helpers. Shared by planner and robot models.
+RRT algorithm and geometry/planning helpers. Used by the **planner** (RrtPlanner) and optionally by robot models (e.g. transformation matrix).
 
 ---
 
-## At a glance
+## Package layout
 
-| Module | Exports | Use |
-|--------|---------|-----|
-| **rrt** | `RrtAlgorithm`, `config_distance`, `config_interpolate`, `config_steer`, `copy_metadata`, `interpolate`, `joint_distance`, `quintic_time_scaling`, `steer` | RRT search, trajectory interpolation and time scaling |
-| **geometry** | `transformation_matrix` | Transformation matrix (roll/pitch/yaw, etc.) |
-| **modern_robotics** | `FKinSpace` | Forward kinematics (space frame) |
+```mermaid
+flowchart TB
+  subgraph utils
+    RRT[rrt.py: RrtAlgorithm]
+    U[utils.py: geometry & path helpers]
+  end
+  subgraph consumers
+    P[planner / RrtPlanner]
+    Robot[robot models]
+  end
+  RRT --> P
+  U --> P
+  U --> Robot
+```
 
----
-
-## RRT-related (rrt)
-
-| Name | Signature / role |
-|------|-------------------|
-| **RrtAlgorithm** | `run(start, goal, obstacle_state)` → (success, trajectory). No threading. |
-| **quintic_time_scaling** | `t in [0,1]` → smooth progress (zero velocity at start/end) |
-| **joint_distance** | Euclidean distance between two `JointState` positions |
-| **config_distance** | Distance between two `np.ndarray` configs (generic config space) |
-| **steer** / **config_steer** | Move one step from start toward target |
-| **interpolate** / **config_interpolate** | Linear interpolation between two states/configs |
-| **copy_metadata** | Copy `JointState` metadata (id, etc.) |
+- **rrt.py** — `RrtAlgorithm`: sampling, steer, collision check; `run(start, goal, obstacles)` → `(success, [(t, config), ...])`. No threading.
+- **utils.py** — `transformation_matrix`, `quintic_time_scaling`, `distance`, `steer`, `interpolate`.
 
 ---
 
-## Where used
+## RrtAlgorithm (rrt.py)
 
-- **planner:** `RrtPlanner` uses `RrtAlgorithm` and the helpers above for trajectory generation and eval.
-- **robots:** `LittleReader` and others use `transformation_matrix`, `FKinSpace` for FK and kinematics.
+```mermaid
+flowchart LR
+  A[set_bounds] --> B[run]
+  C[set_collision_checker] --> B
+  B --> D[(success, trajectory)]
+```
+
+- **set_bounds(min, max)** — Sampling bounds (any dimension, `np.ndarray`).
+- **set_joint_limits(min, max)** — Same as `set_bounds` (convenience for joint space).
+- **set_collision_checker(collision_fn, segment_fn)** — Optional: point and segment collision with `SphereObstacleState` / `CircleObstacleState`.
+- **run(start, goal, obstacle_state)** — Blocking RRT; returns `(success, list of (t, config))`. Uses goal bias, step size, goal threshold, max iterations.
+
+Config space is generic `np.ndarray` (joint angles, pose, or any Euclidean space).
+
+---
+
+## Geometry and path helpers (utils.py)
+
+```mermaid
+flowchart LR
+  Pose --> transformation_matrix
+  t --> quintic_time_scaling
+  a_b --> distance
+  from_toward --> steer
+  a_b_t --> interpolate
+```
+
+- **transformation_matrix(pose)** — 4×4 homogeneous matrix from `Pose` (position + RPY in radians); rotation order Rz·Ry·Rx then translation.
+- **quintic_time_scaling(t)** — Smooth progress in [0, 1] with zero velocity at start and end; input clamped to [0, 1].
+- **distance(a, b)** — Euclidean distance between two vectors (flattened).
+- **steer(from_vec, toward_vec, step_size)** — Step from `from_vec` toward `toward_vec` by at most `step_size`.
+- **interpolate(a, b, t)** — Linear interpolation between `a` and `b` at `t` in [0, 1].
+
+RrtAlgorithm uses `distance`, `steer`, and `interpolate` internally; RrtPlanner uses `quintic_time_scaling` and `interpolate` for `eval(progress)`.

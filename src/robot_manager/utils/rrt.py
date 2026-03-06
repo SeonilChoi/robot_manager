@@ -8,11 +8,11 @@ from __future__ import annotations
 
 import copy
 import random
-from typing import Any, Callable
+from typing import List, Callable
 
 import numpy as np
 
-from robot_manager.core import JointState, ObstacleState
+from robot_manager.types import JointState, SphereObstacleState, CircleObstacleState
 
 PI = 3.14159265358979323846
 MAX_ITERATIONS = 5000
@@ -21,9 +21,9 @@ STEP_SIZE = 0.1
 GOAL_THRESHOLD = 0.05
 INTERP_STEPS = 10
 
+CollisionFn = Callable[[np.ndarray, List[SphereObstacleState | CircleObstacleState]], bool]
+SegmentCollisionFn = Callable[[np.ndarray, np.ndarray, List[SphereObstacleState | CircleObstacleState]], bool]
 
-CollisionFn = Callable[[np.ndarray, Any], bool]
-SegmentCollisionFn = Callable[[np.ndarray, np.ndarray, Any], bool]
 
 class RrtAlgorithm:
     """RRT in an arbitrary Euclidean config space (np.ndarray). No threading."""
@@ -77,17 +77,15 @@ class RrtAlgorithm:
 
     def run(
         self,
-        start: np.ndarray | JointState,
-        goal: np.ndarray | JointState,
-        obstacle_state: Any = None,
-    ) -> tuple[bool, list[tuple[float, np.ndarray]]] | tuple[bool, list[tuple[float, JointState]]]:
+        start: np.ndarray,
+        goal: np.ndarray,
+        obstacle_state: List[SphereObstacleState | CircleObstacleState] | None = None,
+    ) -> tuple[bool, list[tuple[float, np.ndarray]]]:
         """
         Run RRT in config space.
         - If start/goal are np.ndarray: returns (success, list of (t, np.ndarray)).
         - If start/goal are JointState: delegates to run_joint_space and returns (success, list of (t, JointState)).
         """
-        if hasattr(start, "position") and hasattr(goal, "position"):
-            return self.run_joint_space(start, goal, obstacle_state)
         start = np.asarray(start, dtype=np.float64).ravel()
         goal = np.asarray(goal, dtype=np.float64).ravel()
         n = start.size
@@ -174,21 +172,3 @@ class RrtAlgorithm:
                 return True, traj
 
         return False, []
-
-    def run_joint_space(
-        self,
-        start: JointState,
-        goal: JointState,
-        obstacle_state: Any = None,
-    ) -> tuple[bool, list[tuple[float, JointState]]]:
-        """
-        Run RRT in joint position space. Uses start.position / goal.position as config.
-        Returns (success, trajectory) where trajectory is list of (t, JointState).
-        """
-        success, traj = self.run(start.position, goal.position, obstacle_state)
-        if not success:
-            return False, []
-        out: list[tuple[float, JointState]] = []
-        for t, config in traj:
-            out.append((t, copy_metadata(start, config)))
-        return True, out

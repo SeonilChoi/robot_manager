@@ -6,4 +6,4 @@ from robot_manager.core.planner import Planner
 
 from robot_manager.core.robot import Robot
 
-__all__ = ["Planner", "Robot", "Scheduler"]
+__all__ = ["Scheduler", "Planner", "Robot"]
