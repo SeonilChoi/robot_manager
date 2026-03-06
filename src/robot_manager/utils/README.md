@@ -48,11 +48,11 @@ Config space is generic `np.ndarray` (joint angles, pose, or any Euclidean space
 
 ```mermaid
 flowchart LR
-  Pose --> transformation_matrix
-  t --> quintic_time_scaling
-  a_b --> distance
-  from_toward --> steer
-  a_b_t --> interpolate
+  pose_in[Pose] --> transformation_matrix
+  t_in[t] --> quintic_time_scaling
+  ab[a, b] --> distance
+  vecs[from_vec, toward_vec] --> steer
+  abt[a, b, t] --> interpolate
 ```
 
 - **transformation_matrix(pose)** — 4×4 homogeneous matrix from `Pose` (position + RPY in radians); rotation order Rz·Ry·Rx then translation.
