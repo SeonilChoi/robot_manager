@@ -12,6 +12,7 @@ stateDiagram-v2
   STOPPED --> OPERATING: MOVE
   STOPPED --> HOMING: HOME
   OPERATING --> STOPPED: STOP
+  OPERATING --> STOPPED: progress=1
   OPERATING --> OPERATING: MOVE
   HOMING --> STOPPED: STOP
   HOMING --> STOPPED: progress=1
@@ -20,7 +21,7 @@ stateDiagram-v2
 
 - **States:** STOPPED, OPERATING, HOMING, INVALID (invalid transition).
 - **Actions:** STOP, MOVE, HOME. Invalid (current, action) → `tick()` raises `ValueError`.
-- **HOMING** with progress 1.0 → transition to STOPPED.
+- **OPERATING** or **HOMING** with progress 1.0 → transition to STOPPED.
 
 ---
 

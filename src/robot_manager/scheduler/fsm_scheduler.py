@@ -103,7 +103,6 @@ class FsmScheduler(Scheduler):
             return True, next_state
         if next_state.progress == 1.0:
             self._t = 0.0
-            if next_enum == State.HOMING:
-                self._state = State.STOPPED
+            self._state = State.STOPPED
             return True, next_state
         return False, next_state
