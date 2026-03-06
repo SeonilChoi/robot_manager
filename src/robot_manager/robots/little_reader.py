@@ -5,10 +5,10 @@ from typing import List
 
 import numpy as np
 
-from robot_manager.types import FsmAction, JointState, ObstacleState, Pose, PlannerType, Robot, RobotConfig, SchedulerType
-from robot_manager.core.scheduler import FsmScheduler
+from robot_manager.core.robot import Robot
+from robot_manager.types import JointState, SphereObstacleState, CircleObstacleState, 
+from robot_manager.scheduler.fsm_scheduler import FsmScheduler
 from robot_manager.planner.rrt_planner import RrtPlanner
-from robot_manager.utils.utils import transformation_matrix
 
 class LittleReader(Robot):
     """Robot implementation with FSM scheduler and RRT planner; FK/IK stubs."""
@@ -16,12 +16,7 @@ class LittleReader(Robot):
     def __init__(self, config: RobotConfig) -> None:
         super().__init__(config)
         
-        self._world_frame = Pose(
-            position=np.array([0, 0, 0.05]),
-            orientation=np.array([0, 0, -np.pi/2]),
-        )
-        self._Tws = transformation_matrix(self._world_frame)
-
+        self._w0 = 0.05
         self._l1 = 0.1
         self._l2 = 0.1
         self._l3 = 0.4
@@ -32,6 +27,9 @@ class LittleReader(Robot):
             velocity=np.zeros(self._number_of_joints),
             torque=np.zeros(self._number_of_joints),
         )
+        self._current_obstacles = None
+
+        self._current_joint_coordinates = np.zeros((8, 3))
 
     def initialize(self) -> None:
         """Create FSM scheduler and RRT planner from config types."""
@@ -87,6 +85,8 @@ class LittleReader(Robot):
 
         if obstacles is not None:
             self._current_obstacles = obstacles
+
+    def update_current_joint_coordinates()
 
     def forward_kinematics(self, joint_positions: np.ndarray) -> None:
         """Compute Cartesian state from joint state. Not implemented."""

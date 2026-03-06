@@ -37,34 +37,34 @@ class Robot(ABC):
         ...
 
     @abstractmethod
-    def update(self, status: JointState, obstacles: List[ObstacleState] | None = None) -> None:
+    def update(self, status: JointState, obstacles: List[SphereObstacleState | CircleObstacleState] | None = None) -> None:
         """Update internal state from joint feedback and optional obstacle state.
 
         Parameters
         ----------
         status : JointState
             Current joint position, velocity, torque.
-        obstacle : ObstacleState | None
+        obstacles : List[SphereObstacleState | CircleObstacleState] | None
             Optional obstacle state for planning.
         """
         ...
 
     @abstractmethod
-    def home(self) -> None:
+    def _home(self) -> None:
         """Set the robot to home mode."""
         ...
 
     @abstractmethod
-    def move(self) -> None:
+    def _move(self) -> None:
         """Set the robot to moving mode."""
         ...
 
     @abstractmethod
-    def stop(self) -> None:
+    def _stop(self) -> None:
         """Set the robot to stopped mode."""
         ...
 
     @abstractmethod
-    def operating(self) -> None:
-        """Set the robot to operating mode."""
+    def _auto(self) -> None:
+        """Set the robot to auto mode."""
         ...
