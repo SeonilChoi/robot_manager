@@ -112,12 +112,12 @@ All of the following are **dataclasses** used to pass data between robot, schedu
 
 ```mermaid
 flowchart TB
-  subgraph 
+  subgraph  
     RobotConfig
     JointState
     ObstacleState
   end
-  subgraph 
+  subgraph  
     Pose
     Twist
     Wrench
