@@ -17,8 +17,10 @@ class Robot(ABC):
         self._id = config.id
         self._number_of_joints = config.number_of_joints
         self._controller_indexes = config.controller_indexes
-        
-        self._current_joint_state: JointState | None = None 
+        self._scheduler_type = config.scheduler_type
+        self._planner_type = config.planner_type
+
+        self._current_joint_state: JointState | None = None
         self._current_obstacles: List[SphereObstacleState | CircleObstacleState] | None = None
 
         self._is_homing = False

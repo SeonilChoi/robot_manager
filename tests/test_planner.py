@@ -7,7 +7,7 @@ import unittest
 
 import numpy as np
 
-from robot_manager.core import JointState, ObstacleState
+from robot_manager import JointState, SphereObstacleState
 from robot_manager.planner import RrtPlanner
 from robot_manager.utils import RrtAlgorithm
 
@@ -20,17 +20,6 @@ try:
 except ImportError:
     _HAS_MATPLOTLIB = False
     Axes3D = None
-
-
-def _make_joint_state(position):
-    pos = np.atleast_1d(np.asarray(position, dtype=np.float64))
-    return JointState(
-        id=np.arange(pos.size, dtype=np.float64),
-        position=pos.copy(),
-        velocity=np.zeros_like(pos),
-        torque=np.zeros_like(pos),
-    )
-
 
 def _point_in_sphere(point: np.ndarray, center: np.ndarray, radius: float) -> bool:
     return float(np.linalg.norm(np.asarray(point) - np.asarray(center))) < radius
@@ -79,6 +68,11 @@ def _visualizations_dir() -> str:
     return out
 
 
+def _make_joint_state(positions: list) -> np.ndarray:
+    """Return joint position as np.ndarray for RrtAlgorithm.run()."""
+    return np.array(positions, dtype=np.float64)
+
+
 # ----- RrtAlgorithm -----
 
 
@@ -108,9 +102,11 @@ class TestRrtPlanner(unittest.TestCase):
         planner = RrtPlanner(seed=42)
         start = np.array([0.0, 0.0])
         goal = np.array([0.0, 0.0])
-        success = planner.generate_trajectory(start, goal, None)
-        self.assertTrue(success)
-        planner._is_planned = True
+        planner.plan(start, goal, None)
+        deadline = time.monotonic() + 5.0
+        while not planner.is_planned() and time.monotonic() < deadline:
+            time.sleep(0.02)
+        self.assertTrue(planner.is_planned())
         out0 = planner.eval(0.0)
         self.assertIsNotNone(out0)
         np.testing.assert_array_almost_equal(out0, start)
@@ -144,9 +140,9 @@ class TestVisualizeConfigSpaces(unittest.TestCase):
     def test_visualize_joint_space(self):
         """joint_state.position space: 2D path with obstacle."""
         planner = RrtPlanner(seed=123)
-        planner.set_joint_limits(
-            min_positions=np.array([-np.pi, -np.pi]),
-            max_positions=np.array([np.pi, np.pi]),
+        planner.set_bounds(
+            min_bounds=np.array([-np.pi, -np.pi]),
+            max_bounds=np.array([np.pi, np.pi]),
         )
         planner.set_collision_checker(
             collision_fn=_config_collision_spheres,
@@ -154,9 +150,12 @@ class TestVisualizeConfigSpaces(unittest.TestCase):
         )
         start = np.array([0.0, 0.0])
         goal = np.array([1.0, 1.0])
-        obstacles = [ObstacleState(position=np.array([0.5, 0.5]), radius=0.35, zaxis=True)]
-        success = planner.generate_trajectory(start, goal, obstacle_state=obstacles)
-        self.assertTrue(success)
+        obstacles = [SphereObstacleState(id=0, position=np.array([0.5, 0.5]), radius=0.35)]
+        planner.plan(start, goal, obstacles)
+        deadline = time.monotonic() + 5.0
+        while not planner.is_planned() and time.monotonic() < deadline:
+            time.sleep(0.02)
+        self.assertTrue(planner.is_planned())
 
         path = []
         for i in range(81):
@@ -168,7 +167,8 @@ class TestVisualizeConfigSpaces(unittest.TestCase):
         fig, ax = plt.subplots(1, 1, figsize=(7, 7))
         ax.set_aspect("equal")
         for obs in obstacles:
-            circle = plt.Circle(obs.position, obs.radius, color="red", alpha=0.35, ec="darkred", linewidth=1.5)
+            pos = np.asarray(obs.position).ravel()
+            circle = plt.Circle(pos[:2], obs.radius, color="red", alpha=0.35, ec="darkred", linewidth=1.5)
             ax.add_patch(circle)
         ax.plot(path[:, 0], path[:, 1], "b-", linewidth=2, label="RRT path (joint space)")
         ax.plot(start[0], start[1], "go", markersize=12, label="Start")
@@ -195,9 +195,12 @@ class TestVisualizeConfigSpaces(unittest.TestCase):
         )
         start = np.array([0.0, 0.0, 0.0])
         goal = np.array([1.0, 0.0, 0.0])
-        obstacles = [ObstacleState(position=np.array([0.5, 0.0, 0.0]), radius=0.25, zaxis=True)]
-        success = planner.generate_trajectory(start, goal, obstacle_state=obstacles)
-        self.assertTrue(success)
+        obstacles = [SphereObstacleState(id=0, position=np.array([0.5, 0.0, 0.0]), radius=0.25)]
+        planner.plan(start, goal, obstacles)
+        deadline = time.monotonic() + 5.0
+        while not planner.is_planned() and time.monotonic() < deadline:
+            time.sleep(0.02)
+        self.assertTrue(planner.is_planned())
 
         path = []
         for i in range(81):
@@ -241,9 +244,12 @@ class TestVisualizeConfigSpaces(unittest.TestCase):
         )
         start = np.array([0.0, 0.0, 0.0])
         goal = np.array([1.0, 0.0, 0.0])
-        obstacles = [ObstacleState(position=np.array([0.5, 0.0, 0.0]), radius=0.3, zaxis=True)]
-        success = planner.generate_trajectory(start, goal, obstacle_state=obstacles)
-        self.assertTrue(success)
+        obstacles = [SphereObstacleState(id=0, position=np.array([0.5, 0.0, 0.0]), radius=0.3)]
+        planner.plan(start, goal, obstacles)
+        deadline = time.monotonic() + 5.0
+        while not planner.is_planned() and time.monotonic() < deadline:
+            time.sleep(0.02)
+        self.assertTrue(planner.is_planned())
 
         path = []
         for i in range(81):

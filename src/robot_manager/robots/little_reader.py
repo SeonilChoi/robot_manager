@@ -6,9 +6,10 @@ from typing import List
 import numpy as np
 
 from robot_manager.core.robot import Robot
-from robot_manager.types import JointState, SphereObstacleState, CircleObstacleState, 
-from robot_manager.scheduler.fsm_scheduler import FsmScheduler
+from robot_manager.types import JointState, RobotConfig, SphereObstacleState, CircleObstacleState
+from robot_manager.scheduler.fsm_scheduler import FsmScheduler, Action, FsmAction
 from robot_manager.planner.rrt_planner import RrtPlanner
+
 
 class LittleReader(Robot):
     """Robot implementation with FSM scheduler and RRT planner; FK/IK stubs."""
@@ -16,7 +17,7 @@ class LittleReader(Robot):
     def __init__(self, config: RobotConfig) -> None:
         super().__init__(config)
         
-        self._w0 = 0.05
+        self._wz = 0.05
         self._l1 = 0.1
         self._l2 = 0.1
         self._l3 = 0.4
@@ -27,34 +28,34 @@ class LittleReader(Robot):
             velocity=np.zeros(self._number_of_joints),
             torque=np.zeros(self._number_of_joints),
         )
-        self._current_obstacles = None
+        self._current_obstacles = []
 
-        self._current_joint_coordinates = np.zeros((8, 3))
+        self._current_joint_coordinates = np.zeros((8, 3), dtype=np.float64)
+        self._home_joint_positions = np.array([0.2, 0.5, 0, 0], dtype=np.float64)
+        self._current_progress = 0.0
 
     def initialize(self) -> None:
         """Create FSM scheduler and RRT planner from config types."""
-        if self._scheduler_type == SchedulerType.FSM:
-            self._scheduler = FsmScheduler(0.01)
+        if self._scheduler_type == "fsm":
+            self._scheduler = FsmScheduler(0.1)
         else:
             raise ValueError("Invalid scheduler type.")
 
-        if self._planner_type == PlannerType.RRT:
-            self._planner = RrtPlanner(0.01)
+        if self._planner_type == "rrt":
+            self._planner = RrtPlanner()
         else:
             raise ValueError("Invalid planner type.")
 
     def control(self, status) -> JointState | None:
         """Return next joint command from scheduler/planner or current state."""
-        np.copyto(self._current_joint_state.position, status.position)
-        
         if self._is_homing:
-            self.home()
+            self._home()
         elif self._is_moving:
-            self.move()
-        elif self._is_operating:
-            self.operating()
+            self._move()
+        elif self._is_auto:
+            self._auto()
         elif self._is_stop:
-            self.stop()
+            self._stop()
 
         if self._planner.is_planned():
             config = self._planner.eval(self._current_progress)
@@ -68,85 +69,46 @@ class LittleReader(Robot):
                     torque=np.zeros(self._number_of_joints),
                 )
                 joint_command.position[:n] = config[:n]
-                np.copyto(self._current_joint_state.position, joint_command.position)
                 self._scheduler.step()
                 return joint_command
+        
         return self._current_joint_state
         
-    def update(self, status: JointState, obstacles: List[ObstacleState] | None = None) -> None:
+    def update(self, status: JointState, obstacles: List[SphereObstacleState | CircleObstacleState] | None = None) -> None:
         """Update internal state from joint feedback. Optional obstacle for planning.
 
         During a planned motion we do NOT overwrite _current_joint_state from status:
         it is set in control() from the command we send. So status (which may be
         from a previous cycle or a stale goal) cannot overwrite and jump to goal.
         """
-        np.copyto(self._current_joint_state.position, status.position)
-        self.forward_kinematics(self._current_joint_state.position)
-
+        self._current_joint_state.position = status.position.copy()
+        self._update_current_joint_coordinates(self._current_joint_state.position)
         if obstacles is not None:
-            self._current_obstacles = obstacles
+            existing_ids = {getattr(o, "id", None) for o in self._current_obstacles if getattr(o, "id", None) is not None}
+            for obs in obstacles:
+                oid = getattr(obs, "id", None)
+                if oid is not None and oid in existing_ids:
+                    continue
+                self._current_obstacles.append(obs)
+                if oid is not None:
+                    existing_ids.add(oid)
 
-    def update_current_joint_coordinates()
-
-    def forward_kinematics(self, joint_positions: np.ndarray) -> None:
-        """Compute Cartesian state from joint state. Not implemented."""
+    def _update_current_joint_coordinates(self, joint_positions: np.ndarray) -> None:
         q1, q2, h1, h2 = joint_positions
+        self._current_joint_coordinates[0] = np.array([0, 0, 0])
+        self._current_joint_coordinates[1] = np.array([0, 0, self._wz])
+        self._current_joint_coordinates[2] = np.array([       0, -self._l1, self._wz])
+        self._current_joint_coordinates[3] = np.array([self._l2, -self._l1, self._wz])
+        self._current_joint_coordinates[4] = np.array([ self._l2 + self._l3 * np.cos(q2),
+                                                       -self._l1 - self._l3 * np.sin(q1) * np.sin(q2),
+                                                        self._wz + self._l3 * np.cos(q1) * np.sin(q2)])
+        self._current_joint_coordinates[5] = np.array([       0, self._l1, self._wz])
+        self._current_joint_coordinates[6] = np.array([self._l2, self._l1, self._wz])
+        self._current_joint_coordinates[7] = np.array([self._l2 + self._l3 * np.cos(h2),
+                                                       self._l1 + self._l3 * np.sin(h1) * np.sin(h2),
+                                                       self._wz - self._l3 * np.cos(h1) * np.sin(h2)])
 
-        p1 = np.dot(self._Tws, np.array([0, 0, 0, 1]).T)[:3]
-        p2 = np.dot(self._Tws, np.array([self._l1, 0, 0, 1]).T)[:3]
-        p3 = np.dot(self._Tws, np.array([self._l1, self._l2, 0, 1]).T)[:3]
-        p4 = np.dot(self._Tws, np.array([self._l3 * np.sin(q1) * np.sin(q2) + self._l1,
-                                         self._l3 * np.cos(q2) + self._l2,
-                                         self._l3 * np.cos(q1) * np.sin(q2), 1]).T)[:3]
-        p5 = np.dot(self._Tws, np.array([-self._l1, 0, 0, 1]).T)[:3]
-        p6 = np.dot(self._Tws, np.array([-self._l1, self._l2, 0, 1]).T)[:3]
-        p7 = np.dot(self._Tws, np.array([-self._l3 * np.sin(h1) * np.sin(h2) - self._l1,
-                                          self._l3 * np.cos(h2) + self._l2,
-                                         -self._l3 * np.cos(h1) * np.sin(h2), 1]).T)[:3]
-
-        self._current_joint_coordinates = np.array([Pose, Pose, Pose, Pose, Pose, Pose, Pose, Pose, Pose])
-        self._current_joint_coordinates[0] = Pose(
-            position=np.zeros(3),
-            orientation=np.zeros(3),
-        )
-        self._current_joint_coordinates[1] = Pose(
-            position=p1,
-            orientation=np.zeros(3),
-        )
-        self._current_joint_coordinates[2] = Pose(
-            position=p2,
-            orientation=np.zeros(3),
-        )
-        self._current_joint_coordinates[3] = Pose(
-            position=p3,
-            orientation=np.zeros(3),
-        )
-        self._current_joint_coordinates[4] = Pose(
-            position=p4,
-            orientation=np.zeros(3),
-        )
-        self._current_joint_coordinates[5] = Pose(
-            position=p1,
-            orientation=np.zeros(3),
-        )
-        self._current_joint_coordinates[6] = Pose(
-            position=p5,
-            orientation=np.zeros(3),
-        )
-        self._current_joint_coordinates[7] = Pose(
-            position=p6,
-            orientation=np.zeros(3),
-        )
-        self._current_joint_coordinates[8] = Pose(
-            position=p7,
-            orientation=np.zeros(3),
-        )
-
-    def inverse_kinematics(self, robot_state: RobotState) -> JointState:
-        """Compute joint state from Cartesian state. Not implemented."""
-        pass
-
-    def home(self) -> None:
+    def _home(self) -> None:
         is_event, current_fsm_state = self._scheduler.tick(FsmAction(Action.HOME.value, duration=10.0))
         self._current_progress = current_fsm_state.progress
 
@@ -156,27 +118,38 @@ class LittleReader(Robot):
                 self._planner.reset()
                 
             elif current_fsm_state.progress > 0.0 and self._current_joint_state is not None:
-                target_joint_state = JointState(
-                    id=self._current_joint_state.id,
-                    position=self._current_joint_state.position.copy(),
-                    velocity=self._current_joint_state.velocity.copy(),
-                    torque=self._current_joint_state.torque.copy(),
+                self._planner.plan(
+                    self._current_joint_state.position[:2].copy(),
+                    self._home_joint_positions[:2].copy(),
+                    self._current_obstacles
                 )
-                target_joint_state.position[0] += 0.2
-                target_joint_state.position[1] += 0.5
-                
-                obstacle = self._current_obstacles[0] if self._current_obstacles else None
-                self._planner.plan(self._current_joint_state.position[:2].copy(), target_joint_state.position[:2].copy(), obstacle)
 
-    def move(self) -> None:
+    def _move(self) -> None:
         pass
 
-    def stop(self) -> None:
+    def _stop(self) -> None:
+        self._scheduler.tick(FsmAction(Action.STOP.value, duration=0.0))
         self._planner.reset()
-        is_event, current_fsm_state = self._scheduler.tick(FsmAction(Action.STOP.value, duration=0.0))
-        self._current_progress = current_fsm_state.progress
-        if is_event:
-            self._scheduler.reset()
+        self._scheduler.reset()
+        self._current_progress = 0.0
 
-    def operating(self) -> None:
+    def _auto(self) -> None:
         pass
+
+    def forward_kinematics(self, joint_positions: np.ndarray) -> np.ndarray:
+        q1, q2, h1, h2 = joint_positions
+
+        current_joint_coordinates = np.zeros((8, 3), dtype=np.float64)
+        current_joint_coordinates[0] = np.array([0, 0, 0])
+        current_joint_coordinates[1] = np.array([0, 0, self._wz])
+        current_joint_coordinates[2] = np.array([       0, -self._l1, self._wz])
+        current_joint_coordinates[3] = np.array([self._l2, -self._l1, self._wz])
+        current_joint_coordinates[4] = np.array([ self._l2 + self._l3 * np.cos(q2),
+                                                       -self._l1 - self._l3 * np.sin(q1) * np.sin(q2),
+                                                        self._wz + self._l3 * np.cos(q1) * np.sin(q2)])
+        current_joint_coordinates[5] = np.array([       0, self._l1, self._wz])
+        current_joint_coordinates[6] = np.array([self._l2, self._l1, self._wz])
+        current_joint_coordinates[7] = np.array([self._l2 + self._l3 * np.cos(h2),
+                                                 self._l1 + self._l3 * np.sin(h1) * np.sin(h2),
+                                                 self._wz - self._l3 * np.cos(h1) * np.sin(h2)])
+        return current_joint_coordinates

@@ -54,6 +54,11 @@ def _get_next_state(current: State, action: Action) -> State:
     return TRANSITION_TABLE.get((current, action), State.INVALID)
 
 
+def get_next_state(current: State, action: Action) -> State:
+    """Public alias for _get_next_state."""
+    return _get_next_state(current, action)
+
+
 def _to_action(a: int | Action) -> Action:
     """Convert int to Action enum if needed."""
     return a if isinstance(a, Action) else Action(a)

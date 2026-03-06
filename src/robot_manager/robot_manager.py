@@ -75,7 +75,7 @@ class RobotManager:
         """
         self._robot.update(status, obstacles)
 
-    def home(self) -> JointState | None:
+    def home(self) -> None:
         """Start home motion."""
         self._robot._is_homing = True
         self._robot._is_moving = False
