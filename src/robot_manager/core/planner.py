@@ -1,14 +1,15 @@
-"""Abstract planner: background thread, plan(), eval(), generate_trajectory()."""
+"""Abstract planner: background thread, plan(), eval(), generate_trajectory(). Generic over config space (np.ndarray)."""
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
+from typing import Any
 import threading
 
-from robot_manager.core import JointState, ObstacleState
+import numpy as np
 
 
 class Planner(ABC):
-    """Abstract planner: runs in a worker thread, plans from current to target with optional obstacles."""
+    """Abstract planner: runs in a worker thread, plans from current to target. Config space is generic (np.ndarray)."""
 
     def __init__(self) -> None:
         """Create lock, condition, and start the planning thread (daemon)."""
@@ -17,41 +18,44 @@ class Planner(ABC):
         self._is_planned = False
         self._is_running = False
         self._stop_requested = False
-        self._current_state: JointState | None = None
-        self._target_state: JointState | None = None
-        self._obstacle_state: ObstacleState | None = None
+        self._current_state: Any = None
+        self._target_state: Any = None
+        self._obstacle_state: Any = None
         self._planner_thread = threading.Thread(target=self._run, daemon=True)
         self._planner_thread.start()
 
     @abstractmethod
-    def eval(self, progress: float, joint_command: JointState) -> None:
-        """Evaluate planned trajectory at progress and write result into joint_command.
+    def eval(self, progress: float) -> np.ndarray | None:
+        """Evaluate planned trajectory at progress. Returns config (np.ndarray) or None if no plan.
 
         Parameters
         ----------
         progress : float
             Progress in [0, 1] along the trajectory.
-        joint_command : JointState
-            Output; position/velocity/torque are written in place.
+
+        Returns
+        -------
+        np.ndarray | None
+            Configuration at that progress, or None.
         """
         ...
 
     def plan(
         self,
-        current_state: JointState,
-        target_state: JointState,
-        obstacle_state: ObstacleState,
+        current_state: np.ndarray,
+        target_state: np.ndarray,
+        obstacle_state: Any = None,
     ) -> None:
         """Request a new plan from current to target. Non-blocking; runs in worker thread.
 
         Parameters
         ----------
-        current_state : JointState
+        current_state : np.ndarray
             Start configuration.
-        target_state : JointState
+        target_state : np.ndarray
             Goal configuration.
-        obstacle_state : ObstacleState
-            Obstacle state for collision checking.
+        obstacle_state : Any
+            Optional obstacle state for collision checking.
         """
         with self._cv:
             if self._is_running:
@@ -76,11 +80,11 @@ class Planner(ABC):
     @abstractmethod
     def generate_trajectory(
         self,
-        current_state: JointState,
-        target_state: JointState,
-        obstacle_state: ObstacleState,
+        current_state: np.ndarray,
+        target_state: np.ndarray,
+        obstacle_state: Any = None,
     ) -> bool:
-        """Generate trajectory from current to target. Returns True if successful."""
+        """Generate trajectory from current to target. Config must be np.ndarray. Returns True if successful."""
         ...
 
     def _run(self) -> None:
@@ -100,3 +104,13 @@ class Planner(ABC):
                 continue
             success = self.generate_trajectory(current, target, obstacle)
             self._is_planned = success
+
+    def reset(self) -> None:
+        """Reset the planner to initial state."""
+        with self._cv:
+            self._is_planned = False
+            self._is_running = False
+            self._stop_requested = False
+            self._current_state = None
+            self._target_state = None
+            self._obstacle_state = None

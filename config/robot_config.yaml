@@ -1,6 +1,6 @@
 robot:
   id: 1
-  number_of_joints: 3
+  number_of_joints: 4
   scheduler_type: fsm
   planner_type: rrt
   type: little_reader

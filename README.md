@@ -37,7 +37,7 @@ manager = RobotManager("config/robot_config.yaml")
 manager.initialize()
 
 # Control loop: get command → feed back status/obstacle
-cmd = manager.control()
+cmd = manager.control(status=current_joint_state)
 manager.update(status=current_joint_state, obstacle=obstacle_state)
 ```
 

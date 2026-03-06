@@ -63,7 +63,7 @@ class RobotManager:
         """Initialize the robot (scheduler, planner, etc.)."""
         self._robot.initialize()
 
-    def control(self) -> JointState | None:
+    def control(self, status: JointState) -> JointState | None:
         """Compute and return the next joint command (control output).
 
         Returns
@@ -71,7 +71,7 @@ class RobotManager:
         JointState | None
             Command state, or None if not available.
         """
-        return self._robot.control()
+        return self._robot.control(status)
 
     def update(self, status: JointState, obstacle: ObstacleState | None = None) -> None:
         """Update robot with current joint status and optional obstacle state.
@@ -83,16 +83,30 @@ class RobotManager:
         obstacle : ObstacleState | None
             Optional obstacle state for planning/collision.
         """
-        self._robot.update(status, obstacle)
+        obstacles = [obstacle] if obstacle is not None else None
+        self._robot.update(status, obstacles)
 
     def home(self) -> JointState | None:
         """Send home command. Returns home state if defined, else None."""
-        pass
+        self._robot._is_homing = True
+        self._robot._is_moving = False
+        self._robot._is_operating = False
+        self._robot.home()
 
     def stop(self) -> None:
         """Stop motion."""
-        pass
-
+        self._robot._is_homing = False
+        self._robot._is_moving = False
+        self._robot._is_operating = False
+        
     def move(self) -> None:
         """Start or continue move."""
-        pass
+        self._robot._is_homing = False
+        self._robot._is_moving = True
+        self._robot._is_operating = False
+
+    def operating(self) -> None:
+        """Start operating."""
+        self._robot._is_homing = False
+        self._robot._is_moving = False
+        self._robot._is_operating = True

@@ -78,6 +78,7 @@ class ObstacleState:
     """Obstacle representation: center position and radius (sphere/circle)."""
     position: np.ndarray
     radius: float
+    zaxis: bool
 
 
 @dataclass

@@ -31,7 +31,12 @@ def main_gui() -> None:
     import tkinter as tk
     from tkinter import ttk, messagebox
     import numpy as np
-    from robot_manager import JointState, RobotManager
+    from collections import deque
+    from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
+    from matplotlib.figure import Figure
+    from mpl_toolkits.mplot3d import Axes3D
+    from robot_manager.core import JointState, ObstacleState
+    from robot_manager import RobotManager
 
     try:
         manager = RobotManager(str(CONFIG_PATH))
@@ -47,12 +52,219 @@ def main_gui() -> None:
 
     root = tk.Tk()
     root.title("Robot Manager")
-    root.resizable(False, False)
+    root.resizable(True, True)
 
     main_frame = ttk.Frame(root, padding=20)
-    main_frame.pack(fill=tk.BOTH, expand=True)
+    main_frame.pack(fill=tk.BOTH, expand=False)
 
     status_var = tk.StringVar(value="Ready")
+
+    # Figure: 1 row, 2 columns; total size 2x (14, 12)
+    fig = Figure(figsize=(14, 12))
+    ax = fig.add_subplot(1, 2, 1, projection="3d")
+    ax.set_xlabel("x")
+    ax.set_ylabel("y")
+    ax.set_zlabel("z")
+    ax2 = fig.add_subplot(1, 2, 2)
+    # Realtime joint angle history: (current position, target position) per step; max 500 points
+    joint_history: deque = deque(maxlen=500)
+    canvas = FigureCanvasTkAgg(fig, master=root)
+    canvas.get_tk_widget().config(width=2400, height=1200)
+    canvas.get_tk_widget().pack(padx=20, pady=(0, 20))
+
+    # Link connectivity for 9-point two-chain layout (e.g. LittleReader: base 0, then chains 2-3-4 and 6-7-8)
+    LINK_PAIRS = [(0, 1), (1, 2), (2, 3), (3, 4), (0, 5), (5, 6), (6, 7), (7, 8)]
+
+    def _draw_sphere(ax, center: np.ndarray, radius: float, color: str = "gray", alpha: float = 0.4) -> None:
+        u = np.linspace(0, 2 * np.pi, 16)
+        v = np.linspace(0, np.pi, 12)
+        x = center[0] + radius * np.outer(np.cos(u), np.sin(v))
+        y = center[1] + radius * np.outer(np.sin(u), np.sin(v))
+        z = center[2] + radius * np.outer(np.ones_like(u), np.cos(v))
+        ax.plot_surface(x, y, z, color=color, alpha=alpha)
+
+    def _draw_circle_obstacle(ax, center: np.ndarray, radius: float, color: str = "orange", alpha: float = 0.5) -> None:
+        """Draw a 2D circle obstacle in the xy-plane at z=center[2] (surface-avoidance disk)."""
+        theta = np.linspace(0, 2 * np.pi, 48)
+        cx, cy, cz = center[0], center[1], center[2]
+        x = cx + radius * np.cos(theta)
+        y = cy + radius * np.sin(theta)
+        z = np.full_like(theta, cz)
+        ax.plot3D(x, y, z, color=color, linewidth=2)
+        # Filled disk in the plane
+        r_ = np.linspace(0, radius, 12)
+        th_ = np.linspace(0, 2 * np.pi, 32)
+        rr, tt = np.meshgrid(r_, th_)
+        xd = cx + rr * np.cos(tt)
+        yd = cy + rr * np.sin(tt)
+        zd = np.full_like(xd, cz)
+        ax.plot_surface(xd, yd, zd, color=color, alpha=alpha)
+
+    def draw_robot_3d() -> None:
+        ax.clear()
+        ax.set_xlabel("x")
+        ax.set_ylabel("y")
+        ax.set_zlabel("z")
+        ax.set_box_aspect([1, 1, 1])
+
+        all_points = []
+
+        # Robot links and joints (robot._current_joint_coordinates)
+        coords = getattr(manager._robot, "_current_joint_coordinates", None)
+        if coords is not None and len(coords) > 0:
+            try:
+                positions = np.array([np.asarray(p.position).reshape(3) for p in coords if hasattr(p, "position")])
+            except (AttributeError, ValueError, TypeError):
+                positions = np.empty((0, 3))
+            else:
+                if len(positions) >= 2:
+                    for (i, j) in LINK_PAIRS:
+                        if i < len(positions) and j < len(positions):
+                            ax.plot3D(
+                                [positions[i, 0], positions[j, 0]],
+                                [positions[i, 1], positions[j, 1]],
+                                [positions[i, 2], positions[j, 2]],
+                                "b-",
+                                linewidth=2,
+                            )
+                    ax.scatter(positions[:, 0], positions[:, 1], positions[:, 2], c="r", s=40, marker="o")
+                    all_points.append(positions)
+
+        # Obstacles (robot._current_obstacles)
+        obstacles = getattr(manager._robot, "_current_obstacles", None)
+        if obstacles is not None:
+            obs_list = obstacles if isinstance(obstacles, (list, tuple)) else [obstacles]
+            for obs in obs_list:
+                if getattr(obs, "position", None) is None or getattr(obs, "radius", None) is None:
+                    continue
+                try:
+                    c = np.asarray(obs.position).flatten()[:3]
+                    r = float(obs.radius)
+                    zaxis = getattr(obs, "zaxis", True)
+                    if zaxis:
+                        _draw_sphere(ax, c, r, color="orange", alpha=0.5)
+                    else:
+                        _draw_circle_obstacle(ax, c, r, color="orange", alpha=0.05)
+                except (ValueError, TypeError):
+                    pass
+
+        # Planned path: always convert joint-space trajectory to Cartesian via forward kinematics
+        planner = getattr(manager._robot, "_planner", None)
+        path_arr = None
+        if planner is not None and getattr(planner, "is_planned", lambda: False)():
+            get_traj = getattr(planner, "get_trajectory", None)
+            if get_traj is not None:
+                traj = get_traj()
+                if traj:
+                    robot = manager._robot
+                    saved_coords = getattr(robot, "_current_joint_coordinates", None)
+                    current_pos = getattr(robot, "_current_joint_state", None)
+                    path_points = []
+                    try:
+                        for _t, config in traj:
+                            q = np.asarray(config).ravel()
+                            # Build full joint position (planner may use subset, e.g. position[:2])
+                            n_j = robot._number_of_joints
+                            if current_pos is not None and hasattr(current_pos, "position"):
+                                full_q = np.asarray(current_pos.position, dtype=np.float64).ravel()
+                            else:
+                                full_q = np.zeros(n_j, dtype=np.float64)
+                            n_fill = min(q.size, n_j)
+                            full_q[:n_fill] = q[:n_fill]
+                            robot.forward_kinematics(full_q)
+                            crd = getattr(robot, "_current_joint_coordinates", None)
+                            if crd is not None and len(crd) > 4:
+                                p = np.asarray(crd[4].position).flatten()[:3]
+                                path_points.append(p)
+                    finally:
+                        robot._current_joint_coordinates = saved_coords
+                    if len(path_points) >= 1:
+                        path_arr = np.array(path_points)
+                        all_points.append(path_arr)
+                        if len(path_arr) >= 2:
+                            ax.plot3D(
+                                path_arr[:, 0],
+                                path_arr[:, 1],
+                                path_arr[:, 2],
+                                "g-",
+                                linewidth=2,
+                                label="planned path",
+                            )
+                        ax.scatter(
+                            [path_arr[0, 0]],
+                            [path_arr[0, 1]],
+                            [path_arr[0, 2]],
+                            c="lime",
+                            s=120,
+                            marker="o",
+                            edgecolors="darkgreen",
+                            linewidths=2,
+                            label="start",
+                            zorder=5,
+                        )
+                        if len(path_arr) > 2:
+                            ax.scatter(
+                                path_arr[1:-1, 0],
+                                path_arr[1:-1, 1],
+                                path_arr[1:-1, 2],
+                                c="gold",
+                                s=50,
+                                marker="o",
+                                edgecolors="orange",
+                                linewidths=1,
+                                label="waypoints",
+                                zorder=4,
+                            )
+                        ax.scatter(
+                            [path_arr[-1, 0]],
+                            [path_arr[-1, 1]],
+                            [path_arr[-1, 2]],
+                            c="red",
+                            s=120,
+                            marker="*",
+                            edgecolors="darkred",
+                            linewidths=2,
+                            label="goal",
+                            zorder=5,
+                        )
+
+        ax.set_xlim(-0.5, 0.5)
+        ax.set_ylim(-0.5, 0.5)
+        ax.set_zlim(-0.5, 0.5)
+
+        # Realtime joint angles: current vs target per joint
+        robot = manager._robot
+        n_j = robot._number_of_joints
+        current = np.zeros(n_j, dtype=np.float64)
+        
+        cur = np.asarray(status.position).ravel()
+        current[: min(len(cur), n_j)] = cur[:n_j]
+        target = current.copy()
+        planner = getattr(robot, "_planner", None)
+        if planner is not None and getattr(planner, "is_planned", lambda: False)():
+            goal_cfg = planner.eval(1.0)
+            if goal_cfg is not None:
+                g = np.asarray(goal_cfg).ravel()
+                target[: min(len(g), n_j)] = g[:n_j]
+        joint_history.append((current.copy(), target.copy()))
+
+        ax2.clear()
+        ax2.set_xlabel("Time step")
+        ax2.set_ylabel("Angle (rad)")
+        ax2.set_title("Joint angles: current vs target")
+        if joint_history:
+            steps = np.arange(len(joint_history))
+            colors = ["#1f77b4", "#ff7f0e", "#2ca02c", "#d62728", "#9467bd", "#8c564b", "#e377c2", "#7f7f7f"]
+            for j in range(n_j):
+                c = colors[j % len(colors)]
+                curr_vals = np.array([h[0][j] for h in joint_history])
+                tgt_vals = np.array([h[1][j] for h in joint_history])
+                ax2.plot(steps, curr_vals, color=c, linewidth=1.5, label=f"J{j} current")
+                ax2.plot(steps, tgt_vals, "--", color=c, linewidth=1, alpha=0.8, label=f"J{j} target")
+        ax2.legend(loc="upper left", fontsize=8, ncol=2)
+        ax2.grid(True, alpha=0.3)
+
+        canvas.draw_idle()
 
     def on_home() -> None:
         status_var.set("Homing...")
@@ -95,23 +307,24 @@ def main_gui() -> None:
             status_var.set("Error")
             messagebox.showerror("Auto", str(e))
 
-    def tick() -> None:
+    def update() -> None:
         try:
-            manager.update(status)
+            manager.update(status, obstacles)
+            draw_robot_3d()
         except Exception:
             pass
-        root.after(10, tick)
+        root.after(1, update)
 
     def control() -> None:
         try:
-            control_state = manager.control()
+            control_state = manager.control(status)
             if control_state is not None:
                 np.copyto(status.position, control_state.position)
                 np.copyto(status.velocity, control_state.velocity)
                 np.copyto(status.torque, control_state.torque)
         except Exception:
             pass
-        root.after(100, control)
+        root.after(10, control)
 
     ttk.Label(main_frame, text="Robot Manager", font=("", 14, "bold")).pack(pady=(0, 16))
 
@@ -133,8 +346,14 @@ def main_gui() -> None:
         torque=np.zeros(manager._robot._number_of_joints),
     )
 
-    root.after(10, tick)
-    root.after(100, control)
+    obstacles = [ObstacleState(
+        position=np.array([0.0, 0.0, 0.0]),
+        radius=0.5,
+        zaxis=False,
+    )]
+
+    root.after(1, update)
+    root.after(10, control)
     root.mainloop()
 
 

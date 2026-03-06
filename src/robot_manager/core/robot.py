@@ -2,6 +2,9 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
+from typing import List
+
+import numpy as np
 
 from robot_manager.core import (
     JointState,
@@ -22,24 +25,32 @@ class Robot(ABC):
         self._controller_indexes = config.controller_indexes
         self._scheduler_type = config.scheduler_type
         self._planner_type = config.planner_type
-        self._home_state: JointState | None = None
-        self._goal_state: JointState | None = None
+        
         self._world_frame: Pose | None = None
+        
+        self._current_progress = 0.0
+        self._current_joint_state: JointState | None = None 
+        self._current_joint_coordinates: np.ndarray | None = None
         self._current_robot_state: RobotState | None = None
-        self._current_obstacle_state: ObstacleState | None = None
+        self._current_obstacles: List[ObstacleState] | None = None
 
+        self._is_homing    = False
+        self._is_moving    = False
+        self._is_operating = False
+        self._is_stop      = True
+        
     @abstractmethod
     def initialize(self) -> None:
         """Initialize scheduler, planner, and any hardware or simulation."""
         ...
 
     @abstractmethod
-    def control(self) -> JointState | None:
+    def control(self, status: JointState) -> JointState | None:
         """Compute next joint command from current state. Returns command or None."""
         ...
 
     @abstractmethod
-    def update(self, status: JointState, obstacle: ObstacleState | None = None) -> None:
+    def update(self, status: JointState, obstacles: List[ObstacleState] | None = None) -> None:
         """Update internal state from joint feedback and optional obstacle state.
 
         Parameters
@@ -52,11 +63,21 @@ class Robot(ABC):
         ...
 
     @abstractmethod
-    def forward_kinematics(self, joint_state: JointState) -> RobotState:
-        """Compute Cartesian robot state from joint state."""
+    def home(self) -> None:
+        """Set the robot to home mode."""
         ...
 
     @abstractmethod
-    def inverse_kinematics(self, robot_state: RobotState) -> JointState:
-        """Compute joint state from desired Cartesian robot state."""
+    def move(self) -> None:
+        """Set the robot to moving mode."""
+        ...
+
+    @abstractmethod
+    def stop(self) -> None:
+        """Set the robot to stopped mode."""
+        ...
+
+    @abstractmethod
+    def operating(self) -> None:
+        """Set the robot to operating mode."""
         ...

@@ -106,28 +106,27 @@ class TestRrtAlgorithm(unittest.TestCase):
 class TestRrtPlanner(unittest.TestCase):
     def test_eval_after_plan(self):
         planner = RrtPlanner(seed=42)
-        start = _make_joint_state([0.0, 0.0])
-        goal = _make_joint_state([0.0, 0.0])
+        start = np.array([0.0, 0.0])
+        goal = np.array([0.0, 0.0])
         success = planner.generate_trajectory(start, goal, None)
         self.assertTrue(success)
         planner._is_planned = True
-        out0 = _make_joint_state([-1.0, -1.0])
-        planner.eval(0.0, out0)
-        np.testing.assert_array_almost_equal(out0.position, start.position)
-        out1 = _make_joint_state([-1.0, -1.0])
-        planner.eval(1.0, out1)
-        np.testing.assert_array_almost_equal(out1.position, goal.position)
+        out0 = planner.eval(0.0)
+        self.assertIsNotNone(out0)
+        np.testing.assert_array_almost_equal(out0, start)
+        out1 = planner.eval(1.0)
+        self.assertIsNotNone(out1)
+        np.testing.assert_array_almost_equal(out1, goal)
 
-    def test_eval_without_plan_leaves_command_unchanged(self):
+    def test_eval_without_plan_returns_none(self):
         planner = RrtPlanner()
-        cmd = _make_joint_state([1.0, 2.0])
-        planner.eval(0.5, cmd)
-        np.testing.assert_array_almost_equal(cmd.position, [1.0, 2.0])
+        out = planner.eval(0.5)
+        self.assertIsNone(out)
 
     def test_plan_triggers_run_and_generate_trajectory(self):
         planner = RrtPlanner(seed=42)
-        start = _make_joint_state([0.0, 0.0])
-        goal = _make_joint_state([0.0, 0.0])
+        start = np.array([0.0, 0.0])
+        goal = np.array([0.0, 0.0])
         planner.plan(start, goal, None)
         deadline = time.monotonic() + 5.0
         while not planner.is_planned() and time.monotonic() < deadline:
@@ -149,19 +148,19 @@ class TestVisualizeConfigSpaces(unittest.TestCase):
             min_positions=np.array([-np.pi, -np.pi]),
             max_positions=np.array([np.pi, np.pi]),
         )
-        planner.set_collision_checker_config(
-            config_fn=_config_collision_spheres,
+        planner.set_collision_checker(
+            collision_fn=_config_collision_spheres,
             segment_fn=_segment_collision_spheres,
         )
         start = np.array([0.0, 0.0])
         goal = np.array([1.0, 1.0])
-        obstacles = [ObstacleState(position=np.array([0.5, 0.5]), radius=0.35)]
+        obstacles = [ObstacleState(position=np.array([0.5, 0.5]), radius=0.35, zaxis=True)]
         success = planner.generate_trajectory(start, goal, obstacle_state=obstacles)
         self.assertTrue(success)
 
         path = []
         for i in range(81):
-            c = planner.eval_config(i / 80.0)
+            c = planner.eval(i / 80.0)
             if c is not None:
                 path.append(c)
         path = np.array(path)
@@ -187,22 +186,22 @@ class TestVisualizeConfigSpaces(unittest.TestCase):
         """pose.position space: 3D Cartesian path with obstacle."""
         planner = RrtPlanner(seed=100)
         planner.set_bounds(
-            min_config=np.array([-0.5, -0.5, -0.5]),
-            max_config=np.array([1.5, 0.5, 0.5]),
+            min_bounds=np.array([-0.5, -0.5, -0.5]),
+            max_bounds=np.array([1.5, 0.5, 0.5]),
         )
-        planner.set_collision_checker_config(
-            config_fn=_config_collision_spheres,
+        planner.set_collision_checker(
+            collision_fn=_config_collision_spheres,
             segment_fn=_segment_collision_spheres,
         )
         start = np.array([0.0, 0.0, 0.0])
         goal = np.array([1.0, 0.0, 0.0])
-        obstacles = [ObstacleState(position=np.array([0.5, 0.0, 0.0]), radius=0.25)]
+        obstacles = [ObstacleState(position=np.array([0.5, 0.0, 0.0]), radius=0.25, zaxis=True)]
         success = planner.generate_trajectory(start, goal, obstacle_state=obstacles)
         self.assertTrue(success)
 
         path = []
         for i in range(81):
-            c = planner.eval_config(i / 80.0)
+            c = planner.eval(i / 80.0)
             if c is not None:
                 path.append(c)
         path = np.array(path)
@@ -233,22 +232,22 @@ class TestVisualizeConfigSpaces(unittest.TestCase):
         """velocity.linear space: 3D velocity path with obstacle."""
         planner = RrtPlanner(seed=200)
         planner.set_bounds(
-            min_config=np.array([-1.0, -1.0, -1.0]),
-            max_config=np.array([1.0, 1.0, 1.0]),
+            min_bounds=np.array([-1.0, -1.0, -1.0]),
+            max_bounds=np.array([1.0, 1.0, 1.0]),
         )
-        planner.set_collision_checker_config(
-            config_fn=_config_collision_spheres,
+        planner.set_collision_checker(
+            collision_fn=_config_collision_spheres,
             segment_fn=_segment_collision_spheres,
         )
         start = np.array([0.0, 0.0, 0.0])
         goal = np.array([1.0, 0.0, 0.0])
-        obstacles = [ObstacleState(position=np.array([0.5, 0.0, 0.0]), radius=0.3)]
+        obstacles = [ObstacleState(position=np.array([0.5, 0.0, 0.0]), radius=0.3, zaxis=True)]
         success = planner.generate_trajectory(start, goal, obstacle_state=obstacles)
         self.assertTrue(success)
 
         path = []
         for i in range(81):
-            c = planner.eval_config(i / 80.0)
+            c = planner.eval(i / 80.0)
             if c is not None:
                 path.append(c)
         path = np.array(path)

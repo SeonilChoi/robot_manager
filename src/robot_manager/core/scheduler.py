@@ -52,4 +52,4 @@ class Scheduler(ABC):
         """Return progress in [0, 1] for current duration; 0 if duration is 0."""
         if self._T == 0.0:
             return 0.0
-        return round(t / self._T, 2)
+        return round(t / self._T, 3)
