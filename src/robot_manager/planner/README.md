@@ -1,96 +1,74 @@
 # Planner
 
-Path planning: build a trajectory from current to target in a **background thread**, then sample it with `eval(progress, joint_command)`. Supports joint space and **arbitrary config spaces** (pose, velocity, etc.).
+Path planning from **current** to **target** in a **background thread**. Config space is generic (`np.ndarray`). Plan is non-blocking; sample the trajectory with `eval(progress)`.
 
 ---
 
-## At a glance
+## Flow
 
 ```mermaid
-flowchart TB
+flowchart LR
   subgraph user
-    plan[plan]
-    eval[eval]
+    P[plan]
+    E[eval]
   end
-  subgraph Planner
-    worker[Worker thread]
-    gen[generate_trajectory]
+  subgraph worker
+    W[wait]
+    G[_generate_trajectory]
   end
-  subgraph RrtPlanner
-    rrt[RrtAlgorithm.run]
-  end
-  plan --> worker
-  worker --> gen
-  gen --> rrt
-  rrt --> gen
-  gen --> eval
+  P --> W
+  W --> G
+  G --> traj[(trajectory)]
+  traj --> E
 ```
 
-| Module | Contents |
-|--------|----------|
-| **core.planner** | `Planner` (ABC), `JointState`, `ObstacleState` |
-| **planner** | `RrtPlanner` (Planner + RrtAlgorithm) |
-| **utils.rrt** | `RrtAlgorithm`, `quintic_time_scaling`, `interpolate`, `steer`, `joint_distance`, etc. |
+- **plan(current, target, obstacle_state)** — Request a new plan; worker runs in background. If already running, request is ignored.
+- **eval(progress)** — Return config at progress in [0, 1]; quintic time scaling + interpolation. Returns `None` if not planned.
+- **is_planned()** — True when the last plan request completed successfully.
+- **request_stop()** — Signal worker to exit (e.g. before shutdown).
 
 ---
 
-## API summary
+## Planner in the stack
 
-### Planner (core) – abstract
-
-| Method | Role |
-|--------|------|
-| `plan(current, target, obstacle_state)` | Request trajectory asynchronously; worker calls `generate_trajectory()`. |
-| `eval(progress, joint_command)` | Sample planned trajectory at progress and fill `joint_command`. |
-| `is_planned()` | Whether the last request succeeded and a trajectory is ready. |
-| `request_stop()` | Ask worker to exit (call on shutdown). |
-| `generate_trajectory(...)` | *(abstract)* Compute the trajectory. |
-
-### RrtPlanner (this package)
-
-| Method / setting | Description |
-|------------------|-------------|
-| `RrtPlanner(dt=0.01, seed=None)` | Constructor. |
-| `set_joint_limits(min_pos, max_pos)` | Joint sampling bounds. |
-| `set_collision_checker(config_fn, segment_fn)` | Joint-space collision: `config_fn(q, obstacle)`, `segment_fn(a, b, obstacle)`. |
-| `set_collision_checker_config(config_fn, segment_fn)` | Generic config-space collision: `config_fn(config, obstacle)`, `segment_fn(cfg_a, cfg_b, obstacle)`. |
-| `set_bounds(min_config, max_config)` | Config-space sampling bounds (np.ndarray). |
-| `generate_trajectory(current, target, obstacle)` | Run RrtAlgorithm and store trajectory; returns success. |
-| `eval(progress, joint_command)` | Quintic scaling + interpolation to fill `joint_command`. |
-| `eval_config(progress)` | For generic config space: return config vector at progress. |
-
-### RrtAlgorithm (utils.rrt)
-
-| Item | Description |
-|------|-------------|
-| Constructor | `step_size`, `goal_bias`, `goal_threshold`, `max_iterations`, `interp_steps`, `seed` |
-| `run(start, goal, obstacle_state)` | Blocking RRT. Returns: `(success, list[(t, state)])`. |
-
----
-
-## Minimal example
-
-```python
-from robot_manager.planner import RrtPlanner
-from robot_manager.core import JointState
-import numpy as np
-
-planner = RrtPlanner(seed=42)
-planner.set_joint_limits(np.array([-np.pi, -np.pi]), np.array([np.pi, np.pi]))
-start = JointState(id=np.arange(2), position=np.zeros(2), velocity=np.zeros(2), torque=np.zeros(2))
-goal  = JointState(id=np.arange(2), position=np.array([0.5, 0.5]), velocity=np.zeros(2), torque=np.zeros(2))
-
-planner.plan(start, goal, None)
-while not planner.is_planned():
-    time.sleep(0.05)
-cmd = JointState(id=start.id.copy(), position=np.zeros(2), velocity=np.zeros(2), torque=np.zeros(2))
-planner.eval(0.5, cmd)  # cmd.position holds joint angles at 50% along the path
+```
+        Robot / high-level control
+                    │
+                    ▼
+        ┌───────────────────────────────────────┐
+        │  Planner (core ABC)                   │  plan(), eval(), is_planned(), request_stop()
+        │  Worker thread + _generate_trajectory │
+        └───────────────────────────────────────┘
+                    │
+                    ▼
+        ┌───────────────────────────────────────┐
+        │  RrtPlanner                           │  RrtAlgorithm, set_bounds(), set_collision_checker()
+        │  Trajectory: [(t, config), ...]       │  eval(progress) → np.ndarray | None
+        └───────────────────────────────────────┘
 ```
 
+- **core.planner:** Abstract `Planner` — threading, `plan`/`eval`/`is_planned`/`request_stop`; subclasses implement `_generate_trajectory`.
+- **planner:** `RrtPlanner` — uses `RrtAlgorithm`, stores trajectory; `set_bounds(min, max)` for sampling; optional `set_collision_checker(collision_fn, segment_fn)` for `SphereObstacleState` / `CircleObstacleState`.
+
 ---
 
-## Glossary
+## Data flow (RrtPlanner)
 
-- **Configuration space:** Any Euclidean space (joint angles, end-effector pose, velocity, etc.).
-- **Trajectory:** Sequence of (progress, state/config); 0 = start, 1 = goal.
-- **eval(progress):** Sample the trajectory at that progress and return command/config.
+```mermaid
+sequenceDiagram
+  participant U as User
+  participant P as RrtPlanner
+  participant R as RrtAlgorithm
+
+  U->>P: plan(current, target, obstacles)
+  P->>P: notify worker
+  P->>R: run(start, goal, obstacles)
+  R-->>P: (success, [(t, config), ...])
+  P->>P: store trajectory
+  U->>P: eval(progress)
+  P->>P: quintic scaling + interpolate
+  P-->>U: config or None
+```
+
+- **Inputs:** `current_state`, `target_state` as `np.ndarray`; optional list of `SphereObstacleState` | `CircleObstacleState`.
+- **Output:** Trajectory as list of `(t, config)`; `eval(progress)` returns a single config at that progress.

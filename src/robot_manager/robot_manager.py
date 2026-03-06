@@ -1,10 +1,10 @@
 """Robot manager: loads YAML config, owns robot instance, exposes control/update/home/stop/move."""
 from __future__ import annotations
+from typing import List
 
 import yaml
 
-from robot_manager.types import JointState, ObstacleState, RobotConfig
-
+from robot_manager.types import JointState, SphereObstacleState, CircleObstacleState, RobotConfig
 from robot_manager.robots.little_reader import LittleReader
 
 class RobotManager:
@@ -63,17 +63,16 @@ class RobotManager:
         """
         return self._robot.control(status)
 
-    def update(self, status: JointState, obstacle: ObstacleState | None = None) -> None:
+    def update(self, status: JointState, obstacles: List[SphereObstacleState | CircleObstacleState] | None = None) -> None:
         """Update robot with current joint status and optional obstacle state.
 
         Parameters
         ----------
         status : JointState
             Current joint feedback (position, velocity, torque).
-        obstacle : ObstacleState | None
+        obstacles : List[SphereObstacleState | CircleObstacleState] | None
             Optional obstacle state for planning/collision.
         """
-        obstacles = [obstacle] if obstacle is not None else None
         self._robot.update(status, obstacles)
 
     def home(self) -> JointState | None:

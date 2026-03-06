@@ -2,10 +2,12 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from typing import Any
+from typing import List
 import threading
 
 import numpy as np
+
+from robot_manager.types import SphereObstacleState, CircleObstacleState
 
 
 class Planner(ABC):
@@ -15,12 +17,15 @@ class Planner(ABC):
         """Create lock, condition, and start the planning thread (daemon)."""
         self._lock = threading.Lock()
         self._cv = threading.Condition(self._lock)
+        
         self._is_planned = False
         self._is_running = False
         self._stop_requested = False
-        self._current_state: Any = None
-        self._target_state: Any = None
-        self._obstacle_state: Any = None
+
+        self._current_state: np.ndarray | None = None
+        self._target_state: np.ndarray | None = None
+        self._obstacle_state: List[SphereObstacleState | CircleObstacleState] | None = None
+        
         self._planner_thread = threading.Thread(target=self._run, daemon=True)
         self._planner_thread.start()
 
@@ -44,7 +49,7 @@ class Planner(ABC):
         self,
         current_state: np.ndarray,
         target_state: np.ndarray,
-        obstacle_state: Any = None,
+        obstacle_state: List[SphereObstacleState | CircleObstacleState] | None = None,
     ) -> None:
         """Request a new plan from current to target. Non-blocking; runs in worker thread.
 
@@ -54,7 +59,7 @@ class Planner(ABC):
             Start configuration.
         target_state : np.ndarray
             Goal configuration.
-        obstacle_state : Any
+        obstacle_state : List[SphereObstacleState | CircleObstacleState] | None
             Optional obstacle state for collision checking.
         """
         with self._cv:
@@ -78,11 +83,11 @@ class Planner(ABC):
         return self._is_planned
 
     @abstractmethod
-    def generate_trajectory(
+    def _generate_trajectory(
         self,
         current_state: np.ndarray,
         target_state: np.ndarray,
-        obstacle_state: Any = None,
+        obstacle_state: List[SphereObstacleState | CircleObstacleState] | None = None,
     ) -> bool:
         """Generate trajectory from current to target. Config must be np.ndarray. Returns True if successful."""
         ...
@@ -102,7 +107,7 @@ class Planner(ABC):
             if current is None or target is None:
                 self._is_planned = False
                 continue
-            success = self.generate_trajectory(current, target, obstacle)
+            success = self._generate_trajectory(current, target, obstacle)
             self._is_planned = success
 
     def reset(self) -> None:

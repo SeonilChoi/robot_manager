@@ -1,31 +1,28 @@
 """RRT planner: Planner (threading) + RrtAlgorithm; uses np.ndarray only."""
 from __future__ import annotations
+from typing import List, Callable
 
 import threading
-from typing import Any, Callable
-
 import numpy as np
 
+from robot_manager.types import SphereObstacleState, CircleObstacleState
 from robot_manager.core import Planner
-from robot_manager.utils import (
-    interpolate,
-    quintic_time_scaling,
-    RrtAlgorithm,
-)
+from robot_manager.utils.utils import interpolate, quintic_time_scaling
+from robot_manager.utils.rrt import RrtAlgorithm
 
-CollisionFn = Callable[[np.ndarray, Any], bool]
-SegmentCollisionFn = Callable[[np.ndarray, np.ndarray, Any], bool]
+CollisionFn = Callable[[np.ndarray, List[SphereObstacleState | CircleObstacleState]], bool]
+SegmentCollisionFn = Callable[[np.ndarray, np.ndarray, List[SphereObstacleState | CircleObstacleState]], bool]
 
 
 class RrtPlanner(Planner):
     """Planner that runs RrtAlgorithm in a worker thread; trajectory is np.ndarray only."""
 
-    def __init__(self, dt: float = 0.01, seed: int | None = None) -> None:
+    def __init__(self, seed: int | None = None) -> None:
         super().__init__()
-        self._dt = dt
         self._rrt = RrtAlgorithm(seed=seed)
-        self._trajectory: list[tuple[float, np.ndarray]] = []
+        self._trajectory: List[tuple[float, np.ndarray]] = []
         self._trajectory_mutex = threading.Lock()
+
         self._collision_fn: CollisionFn | None = None
         self._segment_collision: SegmentCollisionFn | None = None
 
@@ -46,25 +43,17 @@ class RrtPlanner(Planner):
         """Set sampling bounds (any dimension)."""
         self._rrt.set_bounds(min_bounds, max_bounds)
 
-    def set_joint_limits(
-        self,
-        min_positions: np.ndarray,
-        max_positions: np.ndarray,
-    ) -> None:
-        """Convenience: set bounds for joint position space."""
-        self._rrt.set_joint_limits(min_positions, max_positions)
-
     def reset(self) -> None:
         """Reset planner and clear trajectory so is_planned is False and path is gone."""
         super().reset()
         with self._trajectory_mutex:
             self._trajectory.clear()
 
-    def generate_trajectory(
+    def _generate_trajectory(
         self,
         current_state: np.ndarray,
         target_state: np.ndarray,
-        obstacle_state: Any = None,
+        obstacle_state: List[SphereObstacleState | CircleObstacleState] | None = None,
     ) -> bool:
         """Generate trajectory; current_state and target_state must be np.ndarray."""
         start = np.asarray(current_state, dtype=np.float64).ravel().copy()
@@ -84,7 +73,7 @@ class RrtPlanner(Planner):
         self._is_planned = success
         return success
 
-    def get_trajectory(self) -> list[tuple[float, np.ndarray]]:
+    def get_trajectory(self) -> List[tuple[float, np.ndarray]]:
         """Return a copy of the planned trajectory [(t, q), ...]. Empty if not planned."""
         if not self._is_planned:
             return []

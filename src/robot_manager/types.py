@@ -30,12 +30,17 @@ class JointState:
 
 
 @dataclass
-class ObstacleState:
+class SphereObstacleState:
     """Obstacle representation: center position and radius (sphere/circle)."""
     position: np.ndarray
     radius: float
-    zaxis: bool
 
+@dataclass
+class CircleObstacleState:
+    """Obstacle representation: center position and radius (circle)."""
+    position: np.ndarray
+    radius: float
+    axis: int # if axis == 2 then it is a circle on the xy plane
 
 @dataclass
 class Pose:

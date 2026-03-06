@@ -2,13 +2,15 @@ from .robot_manager import RobotManager
 
 from .types import (
     JointState,
-    ObstacleState,
+    SphereObstacleState,
+    CircleObstacleState,
     RobotConfig,
 )
 
 __all__ = [
     "JointState",
-    "ObstacleState",
+    "SphereObstacleState",
+    "CircleObstacleState",
     "RobotConfig",
     "RobotManager"
 ]
