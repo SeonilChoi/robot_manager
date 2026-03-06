@@ -3,17 +3,9 @@ from __future__ import annotations
 
 import yaml
 
-from robot_manager.core import (
-    JointState,
-    ObstacleState,
-    RobotConfig,
-    to_planner_type,
-    to_robot_type,
-    to_scheduler_type,
-)
-from robot_manager.robots.little_reader import LittleReader
-from robot_manager.scheduler.fsm_scheduler import FsmScheduler
+from robot_manager.types import JointState, ObstacleState, RobotConfig
 
+from robot_manager.robots.little_reader import LittleReader
 
 class RobotManager:
     """High-level robot interface: load config, initialize robot, run control loop and commands."""
@@ -28,7 +20,7 @@ class RobotManager:
             scheduler_type, planner_type, type, optional controller_indexes).
         """
         self._load_configurations(config_file)
-        self.initialize()
+        self._initialize()
 
     def _load_configurations(self, config_file: str) -> None:
         """Parse YAML and instantiate the configured robot (e.g. LittleReader)."""
@@ -43,23 +35,21 @@ class RobotManager:
             if robot.get(key) is None:
                 raise ValueError(f"Config 'robot' must specify '{key}'")
 
-        st = robot.get("scheduler_type")
-        pt = robot.get("planner_type")
         r_cfg = RobotConfig(
             id=robot["id"],
             number_of_joints=robot["number_of_joints"],
             controller_indexes=robot.get("controller_indexes") or [],
-            scheduler_type=to_scheduler_type(st),
-            planner_type=to_planner_type(pt),
-            robot_type=to_robot_type(robot.get("type") or "little_reader"),
+            scheduler_type=robot.get("scheduler_type"),
+            planner_type=robot.get("planner_type"),
+            robot_type=robot.get("type"),
         )
 
-        if robot.get("type") == "little_reader":
+        if r_cfg.robot_type == "little_reader":
             self._robot = LittleReader(r_cfg)
         else:
-            raise ValueError(f"Invalid robot type: {robot.get('type')}")
+            raise ValueError(f"Invalid robot type: {r_cfg.robot_type}")
 
-    def initialize(self) -> None:
+    def _initialize(self) -> None:
         """Initialize the robot (scheduler, planner, etc.)."""
         self._robot.initialize()
 
@@ -87,11 +77,10 @@ class RobotManager:
         self._robot.update(status, obstacles)
 
     def home(self) -> JointState | None:
-        """Send home command. Returns home state if defined, else None."""
+        """Start home motion."""
         self._robot._is_homing = True
         self._robot._is_moving = False
         self._robot._is_operating = False
-        self._robot.home()
 
     def stop(self) -> None:
         """Stop motion."""
@@ -105,7 +94,7 @@ class RobotManager:
         self._robot._is_moving = True
         self._robot._is_operating = False
 
-    def operating(self) -> None:
+    def auto(self) -> None:
         """Start operating."""
         self._robot._is_homing = False
         self._robot._is_moving = False

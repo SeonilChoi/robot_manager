@@ -1,5 +1,14 @@
 from .robot_manager import RobotManager
 
-from .core import JointState
+from .types import (
+    JointState,
+    ObstacleState,
+    RobotConfig,
+)
 
-__all__ = ["RobotManager", "JointState"]
+__all__ = [
+    "JointState",
+    "ObstacleState",
+    "RobotConfig",
+    "RobotManager"
+]

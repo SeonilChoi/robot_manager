@@ -1,54 +1,10 @@
-"""Core dataclasses and enums: scheduler/planner/robot types, FSM state/action, joint/pose/wrench."""
+"""Core dataclasses: FSM state/action, joint/pose/wrench, robot config."""
 from __future__ import annotations
 
 from dataclasses import dataclass
-from enum import Enum
 from typing import List
 
 import numpy as np
-
-
-class SchedulerType(Enum):
-    """Supported scheduler backends."""
-    FSM = 0
-    GAIT = 1
-
-
-class PlannerType(Enum):
-    """Supported planner backends."""
-    RRT = 0
-    PRM = 1
-
-
-class RobotType(Enum):
-    """Supported robot model types."""
-    LITTLE_READER = 0
-
-
-def to_scheduler_type(scheduler_type: str) -> SchedulerType:
-    """Convert string to SchedulerType. Accepts 'fsm', 'gait'."""
-    if scheduler_type == "fsm":
-        return SchedulerType.FSM
-    if scheduler_type == "gait":
-        return SchedulerType.GAIT
-    raise ValueError(f"Invalid scheduler type: {scheduler_type}")
-
-
-def to_planner_type(planner_type: str) -> PlannerType:
-    """Convert string to PlannerType. Accepts 'rrt', 'prm'."""
-    if planner_type == "rrt":
-        return PlannerType.RRT
-    if planner_type == "prm":
-        return PlannerType.PRM
-    raise ValueError(f"Invalid planner type: {planner_type}")
-
-
-def to_robot_type(robot_type: str) -> RobotType:
-    """Convert string to RobotType. Accepts 'little_reader'."""
-    if robot_type == "little_reader":
-        return RobotType.LITTLE_READER
-    raise ValueError(f"Invalid robot type: {robot_type}")
-
 
 @dataclass
 class FsmState:
@@ -119,6 +75,6 @@ class RobotConfig:
     id: int
     number_of_joints: int
     controller_indexes: List[int]
-    scheduler_type: SchedulerType
-    planner_type: PlannerType
-    robot_type: RobotType
+    scheduler_type: str
+    planner_type: str
+    robot_type: str
