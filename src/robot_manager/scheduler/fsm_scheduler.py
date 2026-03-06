@@ -4,7 +4,8 @@ from __future__ import annotations
 from enum import Enum
 from typing import Tuple
 
-from robot_manager.core import FsmAction, FsmState, Scheduler
+from robot_manager.core.scheduler import Scheduler
+from robot_manager.types import FsmAction, FsmState
 
 
 class State(Enum):
@@ -35,7 +36,7 @@ TRANSITION_TABLE: dict[tuple[State, Action], State] = {
 }
 
 
-def get_next_state(current: State, action: Action) -> State:
+def _get_next_state(current: State, action: Action) -> State:
     """Return next state from transition table; State.INVALID if no entry.
 
     Parameters
@@ -90,7 +91,7 @@ class FsmScheduler(Scheduler):
         """
         self._T = action.duration
         t = self._t + self._dt if self._T != 0.0 else 0.0
-        next_enum = get_next_state(self._state, _to_action(action.action))
+        next_enum = _get_next_state(self._state, _to_action(action.action))
         next_state = FsmState(
             state=next_enum.value,
             progress=self._progress_raw(t),

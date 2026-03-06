@@ -4,7 +4,7 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from typing import Tuple
 
-from robot_manager.core import FsmAction, FsmState
+from robot_manager.types import FsmAction, FsmState
 
 
 class Scheduler(ABC):
