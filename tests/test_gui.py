@@ -46,14 +46,6 @@ def main_gui() -> None:
         messagebox.showerror("Config Error", f"Config not found: {CONFIG_PATH}")
         return
 
-    # Set planner bounds and collision checker so paths avoid spheres and planar circles.
-    planner = getattr(manager._robot, "_planner", None)
-    if planner is not None:
-        planner.set_bounds(
-            min_bounds=np.array([-np.pi, -np.pi]),
-            max_bounds=np.array([np.pi, np.pi]),
-        )
-
     root = tk.Tk()
     root.title("Robot Manager")
     root.resizable(True, True)
@@ -70,8 +62,8 @@ def main_gui() -> None:
     ax.set_ylabel("y")
     ax.set_zlabel("z")
     ax2 = fig.add_subplot(1, 2, 2)
-    # Realtime joint angle history: (current position, target position) per step; max 500 points
-    joint_history: deque = deque(maxlen=500)
+    # Realtime configuration history: (current, target) per step; max 500 points
+    config_history: deque = deque(maxlen=500)
     canvas = FigureCanvasTkAgg(fig, master=root)
     canvas.get_tk_widget().config(width=2400, height=1200)
     canvas.get_tk_widget().pack(padx=20, pady=(0, 20))
@@ -87,7 +79,7 @@ def main_gui() -> None:
         z = center[2] + radius * np.outer(np.ones_like(u), np.cos(v))
         ax.plot_surface(x, y, z, color=color, alpha=alpha)
 
-    def _draw_circle_obstacle(ax, center: np.ndarray, radius: float, color: str = "orange", alpha: float = 0.5) -> None:
+    def _draw_circle_obstacle(ax, center: np.ndarray, radius: float, color: str = "orange", alpha: float = 0.2) -> None:
         """Draw a 2D circle obstacle in the xy-plane at z=center[2] (surface-avoidance disk)."""
         theta = np.linspace(0, 2 * np.pi, 48)
         cx, cy, cz = center[0], center[1], center[2]
@@ -133,7 +125,7 @@ def main_gui() -> None:
                 ax.scatter(positions[:, 0], positions[:, 1], positions[:, 2], c="r", s=40, marker="o")
                 all_points.append(positions)
 
-        # Obstacles (robot._current_obstacles)
+        # Obstacles (robot._current_obstacles: CircleObstacleState, SelfObstacleState, etc.)
         obstacles = getattr(manager._robot, "_current_obstacles", None)
         if obstacles is not None:
             obs_list = obstacles if isinstance(obstacles, (list, tuple)) else [obstacles]
@@ -145,13 +137,13 @@ def main_gui() -> None:
                     r = float(obs.radius)
                     has_axis = getattr(obs, "axis", None)
                     if has_axis is not None and has_axis == 2:
-                        _draw_circle_obstacle(ax, c, r, color="orange", alpha=0.05)
+                        _draw_circle_obstacle(ax, c, r, color="orange", alpha=0.2)
                     else:
                         _draw_sphere(ax, c, r, color="orange", alpha=0.5)
                 except (ValueError, TypeError):
                     pass
 
-        # Planned path: when is_planned, use forward_kinematics to get 3D path and show start, goal, path
+        # Planned path: traj is in joint space; use get_joint_coordinates, index 4 = end effector
         planner = getattr(manager._robot, "_planner", None)
         path_arr = None
         if planner is not None and getattr(planner, "is_planned", lambda: False)():
@@ -161,27 +153,26 @@ def main_gui() -> None:
                 if traj:
                     robot = manager._robot
                     current_pos = getattr(robot, "_current_joint_state", None)
+                    get_coords = getattr(robot, "get_joint_coordinates", None)
                     path_points = []
-                    fk = getattr(robot, "forward_kinematics", None)
                     for _t, config in traj:
                         q = np.asarray(config).ravel()
-                        n_j = robot._number_of_joints
+                        n_j = getattr(robot, "_number_of_joints", 0)
                         if current_pos is not None and hasattr(current_pos, "position"):
                             full_q = np.asarray(current_pos.position, dtype=np.float64).ravel().copy()
                         else:
-                            full_q = np.zeros(n_j, dtype=np.float64)
-                        n_fill = min(q.size, n_j)
+                            full_q = np.zeros(max(n_j, 1), dtype=np.float64)
+                        n_fill = min(q.size, full_q.size)
                         full_q[:n_fill] = q[:n_fill]
-                        if fk is not None:
-                            crd = fk(full_q)
+                        if get_coords is not None:
+                            crd = get_coords(full_q)
                             if crd is not None and len(crd) > 4:
-                                p = np.asarray(crd[4]).flatten()[:3]
-                                path_points.append(p)
+                                path_points.append(np.asarray(crd[4]).flatten()[:3].astype(float))
                                 continue
                         if q.size >= 3:
-                            path_points.append(q[:3].tolist())
+                            path_points.append(q[:3].astype(float))
                         elif q.size >= 2:
-                            path_points.append([float(q[0]), float(q[1]), 0.0])
+                            path_points.append(np.array([float(q[0]), float(q[1]), 0.0]))
                     if len(path_points) >= 1:
                         path_arr = np.array(path_points)
                         all_points.append(path_arr)
@@ -236,36 +227,34 @@ def main_gui() -> None:
         ax.set_ylim(-0.5, 0.5)
         ax.set_zlim(-0.5, 0.5)
 
-        # Realtime joint angles: current (from robot._current_joint_state) vs target per joint
+        # Realtime configuration: current (from robot._current_joint_state) vs target
         robot = manager._robot
-        n_j = robot._number_of_joints
-        current = np.zeros(n_j, dtype=np.float64)
-        cur_state = getattr(robot, "_current_joint_state", None)
-        if cur_state is not None and hasattr(cur_state, "position"):
-            cur = np.asarray(cur_state.position).ravel()
-            current[: min(len(cur), n_j)] = cur[:n_j]
+        n_j = getattr(robot, "_number_of_joints", 0)
+        current = getattr(robot, "_current_configuration", None)[:2]
         target = current.copy()
         planner = getattr(robot, "_planner", None)
         if planner is not None and getattr(planner, "is_planned", lambda: False)():
             goal_cfg = planner.eval(1.0)
             if goal_cfg is not None:
                 g = np.asarray(goal_cfg).ravel()
-                target[: min(len(g), n_j)] = g[:n_j]
-        joint_history.append((current.copy(), target.copy()))
+                n = min(len(g), len(target))
+                target[:n] = g[:n]
+        config_history.append((current.copy(), target.copy()))
 
         ax2.clear()
         ax2.set_xlabel("Time step")
-        ax2.set_ylabel("Angle (rad)")
-        ax2.set_title("Joint angles: current vs target")
-        if joint_history:
-            steps = np.arange(len(joint_history))
+        ax2.set_ylabel("Value")
+        ax2.set_title("Configuration: current vs target")
+        if config_history:
+            steps = np.arange(len(config_history))
+            n_dims = len(config_history[0][0])
             colors = ["#1f77b4", "#ff7f0e", "#2ca02c", "#d62728", "#9467bd", "#8c564b", "#e377c2", "#7f7f7f"]
-            for j in range(n_j):
-                c = colors[j % len(colors)]
-                curr_vals = np.array([h[0][j] for h in joint_history])
-                tgt_vals = np.array([h[1][j] for h in joint_history])
-                ax2.plot(steps, curr_vals, color=c, linewidth=1.5, label=f"J{j} current")
-                ax2.plot(steps, tgt_vals, "--", color=c, linewidth=1, alpha=0.8, label=f"J{j} target")
+            for d in range(n_dims):
+                c = colors[d % len(colors)]
+                curr_vals = np.array([h[0][d] for h in config_history])
+                tgt_vals = np.array([h[1][d] for h in config_history])
+                ax2.plot(steps, curr_vals, color=c, linewidth=1.5, label=f"dim {d} current")
+                ax2.plot(steps, tgt_vals, "--", color=c, linewidth=1, alpha=0.8, label=f"dim {d} target")
         ax2.legend(loc="upper left", fontsize=8, ncol=2)
         ax2.grid(True, alpha=0.3)
 
@@ -346,24 +335,11 @@ def main_gui() -> None:
 
     status = JointState(
         id=np.arange(manager._robot._number_of_joints),
-        position=np.zeros(manager._robot._number_of_joints),
+        position=np.array([-0.6, 1.2, 0.5, -0.8]),
         velocity=np.zeros(manager._robot._number_of_joints),
         torque=np.zeros(manager._robot._number_of_joints),
     )
-
-    obstacles = [
-        CircleObstacleState(
-            id = 0,
-            position=np.array([0.0, 0.0, 0.0]),
-            radius=0.5,
-            axis=2,
-        ),
-        SphereObstacleState(
-            id = 1,
-            position=np.array([0.5, 0.0, 0.2]),
-            radius=0.1,
-        )
-    ]
+    obstacles = None
 
     root.after(1, update)
     root.after(10, control)

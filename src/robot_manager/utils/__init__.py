@@ -7,10 +7,13 @@ from robot_manager.utils.utils import (
     interpolate,
 )
 
+from robot_manager.utils.kinematics import forward_kinematics
+
 __all__ = [
     "RrtAlgorithm",
     "quintic_time_scaling",
     "distance",
     "steer",
     "interpolate",
+    "forward_kinematics",
 ]

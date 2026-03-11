@@ -45,6 +45,14 @@ class CircleObstacleState:
     axis: int # if axis == 2 then it is a circle on the xy plane
 
 @dataclass
+class SelfObstacleState:
+    """Self obstacle representation: center position and radius (self)."""
+    id: int
+    position: np.ndarray
+    radius: float
+    neighbor_id: List[int]
+
+@dataclass
 class Pose:
     """Rigid pose: position (3,) and orientation (e.g. RPY or quat)."""
     position: np.ndarray

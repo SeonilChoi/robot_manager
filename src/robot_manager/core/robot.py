@@ -2,11 +2,17 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from typing import List
+from typing import List, Dict
 
 import numpy as np
 
-from robot_manager.types import JointState, SphereObstacleState, CircleObstacleState, RobotConfig
+from robot_manager.types import (
+    JointState,
+    SphereObstacleState,
+    CircleObstacleState,
+    SelfObstacleState,
+    RobotConfig,
+)
 
 
 class Robot(ABC):
@@ -21,7 +27,11 @@ class Robot(ABC):
         self._planner_type = config.planner_type
 
         self._current_joint_state: JointState | None = None
-        self._current_obstacles: List[SphereObstacleState | CircleObstacleState] | None = None
+        self._current_joint_coordinates: np.ndarray | None = None
+        self._current_obstacles: List[SphereObstacleState | CircleObstacleState | SelfObstacleState] | None = None
+        self._current_progress = 0.0
+
+        self._configuration_space_bounds: Dict[str, np.ndarray] = {}
 
         self._is_homing = False
         self._is_moving = False

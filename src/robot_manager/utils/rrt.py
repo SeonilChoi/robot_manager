@@ -12,18 +12,18 @@ from typing import List, Callable
 
 import numpy as np
 
-from robot_manager.types import JointState, SphereObstacleState, CircleObstacleState
+from robot_manager.types import JointState, SphereObstacleState, CircleObstacleState, SelfObstacleState
 from robot_manager.utils.utils import distance, interpolate, steer
 
 PI = 3.14159265358979323846
 MAX_ITERATIONS = 5000
-GOAL_BIAS = 0.1
-STEP_SIZE = 0.1
-GOAL_THRESHOLD = 0.01
+GOAL_BIAS = 0.3
+STEP_SIZE = 0.08
+GOAL_THRESHOLD = 0.005
 INTERP_STEPS = 10
 
-CollisionFn = Callable[[np.ndarray, List[SphereObstacleState | CircleObstacleState]], bool]
-SegmentCollisionFn = Callable[[np.ndarray, np.ndarray, List[SphereObstacleState | CircleObstacleState]], bool]
+CollisionFn = Callable[[np.ndarray, List[SphereObstacleState | CircleObstacleState | SelfObstacleState]], bool]
+SegmentCollisionFn = Callable[[np.ndarray, np.ndarray, List[SphereObstacleState | CircleObstacleState | SelfObstacleState]], bool]
 
 
 class RrtAlgorithm:
@@ -48,7 +48,7 @@ class RrtAlgorithm:
         self._bounds_min: np.ndarray | None = None
         self._bounds_max: np.ndarray | None = None
         self._collision_fn: CollisionFn | None = None
-        self._segment_collision: SegmentCollisionFn | None = None
+        self._segment_collision_fn: SegmentCollisionFn | None = None
 
     def set_bounds(
         self,
@@ -74,13 +74,13 @@ class RrtAlgorithm:
     ) -> None:
         """Set optional collision checkers: collision_fn(q, obstacle_state), segment_fn(a, b, obstacle_state)."""
         self._collision_fn = collision_fn
-        self._segment_collision = segment_fn
+        self._segment_collision_fn = segment_fn
 
     def run(
         self,
         start: np.ndarray,
         goal: np.ndarray,
-        obstacle_state: List[SphereObstacleState | CircleObstacleState] | None = None,
+        obstacle_state: List[SphereObstacleState | CircleObstacleState | SelfObstacleState] | None = None,
     ) -> tuple[bool, list[tuple[float, np.ndarray]]]:
         """
         Run RRT in config space.
@@ -109,13 +109,8 @@ class RrtAlgorithm:
             return False
 
         def segment_collision(a: np.ndarray, b: np.ndarray) -> bool:
-            if self._segment_collision is not None:
-                return self._segment_collision(a, b, obstacle_state)
-            for s in range(1, self._interp_steps):
-                t = s / self._interp_steps
-                q = interpolate(a, b, t)
-                if in_collision(q):
-                    return True
+            if self._segment_collision_fn is not None:
+                return self._segment_collision_fn(a, b, obstacle_state)
             return False
 
         rng = random.Random(self._seed)

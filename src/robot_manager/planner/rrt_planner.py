@@ -5,13 +5,13 @@ from typing import List, Callable
 import threading
 import numpy as np
 
-from robot_manager.types import SphereObstacleState, CircleObstacleState
+from robot_manager.types import SphereObstacleState, CircleObstacleState, SelfObstacleState
 from robot_manager.core import Planner
 from robot_manager.utils.utils import interpolate, quintic_time_scaling
 from robot_manager.utils.rrt import RrtAlgorithm
 
-CollisionFn = Callable[[np.ndarray, List[SphereObstacleState | CircleObstacleState]], bool]
-SegmentCollisionFn = Callable[[np.ndarray, np.ndarray, List[SphereObstacleState | CircleObstacleState]], bool]
+CollisionFn = Callable[[np.ndarray, List[SphereObstacleState | CircleObstacleState | SelfObstacleState]], bool]
+SegmentCollisionFn = Callable[[np.ndarray, np.ndarray, List[SphereObstacleState | CircleObstacleState | SelfObstacleState]], bool]
 
 
 class RrtPlanner(Planner):
@@ -53,7 +53,7 @@ class RrtPlanner(Planner):
         self,
         current_state: np.ndarray,
         target_state: np.ndarray,
-        obstacle_state: List[SphereObstacleState | CircleObstacleState] | None = None,
+        obstacle_state: List[SphereObstacleState | CircleObstacleState | SelfObstacleState] | None = None,
     ) -> bool:
         """Generate trajectory; current_state and target_state must be np.ndarray."""
         start = np.asarray(current_state, dtype=np.float64).ravel().copy()

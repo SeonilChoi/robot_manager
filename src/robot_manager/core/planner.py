@@ -7,7 +7,7 @@ import threading
 
 import numpy as np
 
-from robot_manager.types import SphereObstacleState, CircleObstacleState
+from robot_manager.types import SphereObstacleState, CircleObstacleState, SelfObstacleState
 
 
 class Planner(ABC):
@@ -24,7 +24,7 @@ class Planner(ABC):
 
         self._current_state: np.ndarray | None = None
         self._target_state: np.ndarray | None = None
-        self._obstacle_state: List[SphereObstacleState | CircleObstacleState] | None = None
+        self._obstacle_state: List[SphereObstacleState | CircleObstacleState | SelfObstacleState] | None = None
         
         self._planner_thread = threading.Thread(target=self._run, daemon=True)
         self._planner_thread.start()
@@ -49,7 +49,7 @@ class Planner(ABC):
         self,
         current_state: np.ndarray,
         target_state: np.ndarray,
-        obstacle_state: List[SphereObstacleState | CircleObstacleState] | None = None,
+        obstacle_state: List[SphereObstacleState | CircleObstacleState | SelfObstacleState] | None = None,
     ) -> None:
         """Request a new plan from current to target. Non-blocking; runs in worker thread.
 
@@ -59,7 +59,7 @@ class Planner(ABC):
             Start configuration.
         target_state : np.ndarray
             Goal configuration.
-        obstacle_state : List[SphereObstacleState | CircleObstacleState] | None
+        obstacle_state : List[SphereObstacleState | CircleObstacleState | SelfObstacleState] | None
             Optional obstacle state for collision checking.
         """
         with self._cv:
@@ -87,7 +87,7 @@ class Planner(ABC):
         self,
         current_state: np.ndarray,
         target_state: np.ndarray,
-        obstacle_state: List[SphereObstacleState | CircleObstacleState] | None = None,
+        obstacle_state: List[SphereObstacleState | CircleObstacleState | SelfObstacleState] | None = None,
     ) -> bool:
         """Generate trajectory from current to target. Config must be np.ndarray. Returns True if successful."""
         ...
