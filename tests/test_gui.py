@@ -66,13 +66,11 @@ def main_gui() -> None:
 
     # Figure: 1 row, 2 columns; total size 2x (14, 12)
     fig = Figure(figsize=(14, 12))
-    ax = fig.add_subplot(1, 2, 1, projection="3d")
+    ax = fig.add_subplot(1, 1, 1, projection="3d")
     ax.set_xlabel("x")
     ax.set_ylabel("y")
     ax.set_zlabel("z")
-    ax2 = fig.add_subplot(1, 2, 2)
-    # Realtime configuration history: (current, target) per step; max 500 points
-    config_history: deque = deque(maxlen=500)
+
     canvas = FigureCanvasTkAgg(fig, master=root)
     canvas.get_tk_widget().config(width=3000, height=2000)
     canvas.get_tk_widget().pack(padx=20, pady=(0, 20))
@@ -244,40 +242,6 @@ def main_gui() -> None:
         ax.set_xlim(-0.5, 0.5)
         ax.set_ylim(-0.5, 0.5)
         ax.set_zlim(-0.5, 0.5)
-
-        # Realtime configuration: current (from robot._current_joint_state) vs target
-        robot = manager._robot
-        n_j = getattr(robot, "_number_of_joints", 0)
-        if robot._home_count == 0:
-            current = getattr(robot, "_current_configuration", None)[:2]
-        else:
-            current = getattr(robot, "_current_configuration", None)[2:]
-        target = current.copy()
-        planner = getattr(robot, "_planner", None)
-        if planner is not None and getattr(planner, "is_planned", lambda: False)():
-            goal_cfg = planner.eval(1.0)
-            if goal_cfg is not None:
-                g = np.asarray(goal_cfg).ravel()
-                n = min(len(g), len(target))
-                target[:n] = g[:n]
-        config_history.append((current.copy(), target.copy()))
-
-        ax2.clear()
-        ax2.set_xlabel("Time step")
-        ax2.set_ylabel("Value")
-        ax2.set_title("Configuration: current vs target")
-        if config_history:
-            steps = np.arange(len(config_history))
-            n_dims = len(config_history[0][0])
-            colors = ["#1f77b4", "#ff7f0e", "#2ca02c", "#d62728", "#9467bd", "#8c564b", "#e377c2", "#7f7f7f"]
-            for d in range(n_dims):
-                c = colors[d % len(colors)]
-                curr_vals = np.array([h[0][d] for h in config_history])
-                tgt_vals = np.array([h[1][d] for h in config_history])
-                ax2.plot(steps, curr_vals, color=c, linewidth=1.5, label=f"dim {d} current")
-                ax2.plot(steps, tgt_vals, "--", color=c, linewidth=1, alpha=0.8, label=f"dim {d} target")
-        ax2.legend(loc="upper left", fontsize=8, ncol=2)
-        ax2.grid(True, alpha=0.3)
 
         canvas.draw_idle()
 
