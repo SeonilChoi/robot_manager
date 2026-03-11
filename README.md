@@ -3,13 +3,56 @@
 Load a robot from **YAML config**, run a **control loop** (control / update), and plan paths with **RRT** in arbitrary configuration spaces.
 
 ```mermaid
-flowchart LR
-  A[YAML config] --> B[RobotManager]
-  B --> C[control]
-  B --> D[update]
-  C --> E[JointState command]
-  D --> E
-  E --> C
+flowchart TB
+  subgraph config["config"]
+    YAML[YAML config]
+    RC[RobotConfig]
+    YAML --> RC
+  end
+
+  subgraph entry["entry"]
+    RM[RobotManager]
+    RM --> control[control]
+    RM --> update[update]
+    RM --> modes[home / stop / move / auto]
+  end
+
+  subgraph robot["robot (LittleReader)"]
+    LR[Robot]
+    LR --> Sched[FsmScheduler]
+    LR --> Plan[RrtPlanner]
+    LR --> FK[get_joint_coordinates]
+  end
+
+  subgraph planning["planning"]
+    Plan --> RRT[RrtAlgorithm]
+    Plan --> Eval[eval]
+    RRT --> Run[run]
+  end
+
+  subgraph utils["utils"]
+    dist[distance]
+    st[steer]
+    interp[interpolate]
+    qts[quintic_time_scaling]
+    kin[forward_kinematics]
+  end
+
+  RC --> RM
+  RM --> LR
+  status[(status / obstacles)] --> update
+  update --> LR
+  control --> LR
+  LR --> cmd[(JointState command)]
+  modes --> LR
+  Sched --> tick[tick]
+  Plan --> Run
+  Run --> dist
+  Run --> st
+  Run --> interp
+  Eval --> qts
+  Eval --> interp
+  FK --> kin
 ```
 
 ---

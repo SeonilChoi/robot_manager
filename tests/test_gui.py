@@ -318,7 +318,7 @@ def main_gui() -> None:
 
     status = JointState(
         id=np.arange(manager._robot._number_of_joints),
-        position=np.array([-0.6, 1.2, 0.5, -0.8]),
+        position=np.array([-0.6, 1.4, 0.5, -1.0]),
         velocity=np.zeros(manager._robot._number_of_joints),
         torque=np.zeros(manager._robot._number_of_joints),
     )
