@@ -10,8 +10,6 @@ from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 CONFIG_PATH = PROJECT_ROOT / "config" / "robot_config.yaml"
-ROBOTS_DIR = PROJECT_ROOT / "src" / "robot_manager" / "robots"
-HOME_SCREENSHOT_PATH = ROBOTS_DIR / "little_reader_home.png"
 
 
 # -----------------------------------------------------------------------------
@@ -245,23 +243,12 @@ def main_gui() -> None:
 
         canvas.draw_idle()
 
-    def _capture_home_screenshot() -> None:
-        """Save the current figure as little_reader_home.png for README."""
-        try:
-            draw_robot_3d()
-            ROBOTS_DIR.mkdir(parents=True, exist_ok=True)
-            fig.savefig(HOME_SCREENSHOT_PATH, dpi=100, bbox_inches="tight")
-        except Exception:
-            pass
-
     def on_home() -> None:
         status_var.set("Homing...")
         root.update_idletasks()
         try:
             manager.home()
             status_var.set("Home done")
-            # Capture screen after a short delay so homing path is visible
-            root.after(1500, _capture_home_screenshot)
         except Exception as e:
             status_var.set("Error")
             messagebox.showerror("Home", str(e))
