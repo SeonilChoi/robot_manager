@@ -22,6 +22,10 @@ flowchart TB
 
 - **LittleReader** — Dual-arm style model: FSM scheduler, RRT planner, DH-based forward kinematics. Plans in configuration space; collision uses **SelfObstacleState** (links) and **CircleObstacleState** (environment).
 
+  ![LittleReader Home](little_reader_home.png)
+
+  *Screenshot after pressing Home in the Robot Manager GUI (path and end-effector positions).*
+
 ---
 
 ## Data flow (LittleReader)
