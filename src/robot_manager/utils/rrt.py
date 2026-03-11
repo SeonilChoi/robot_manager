@@ -17,8 +17,8 @@ from robot_manager.utils.utils import distance, interpolate, steer
 
 PI = 3.14159265358979323846
 MAX_ITERATIONS = 5000
-GOAL_BIAS = 0.3
-STEP_SIZE = 0.08
+GOAL_BIAS = 0.5
+STEP_SIZE = 0.05
 GOAL_THRESHOLD = 0.005
 INTERP_STEPS = 10
 

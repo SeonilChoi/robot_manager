@@ -65,7 +65,7 @@ def main_gui() -> None:
     # Realtime configuration history: (current, target) per step; max 500 points
     config_history: deque = deque(maxlen=500)
     canvas = FigureCanvasTkAgg(fig, master=root)
-    canvas.get_tk_widget().config(width=2400, height=1200)
+    canvas.get_tk_widget().config(width=3000, height=2000)
     canvas.get_tk_widget().pack(padx=20, pady=(0, 20))
 
     # Link connectivity for 9-point two-chain layout (e.g. LittleReader: base 0, then chains 2-3-4 and 6-7-8)
@@ -163,14 +163,23 @@ def main_gui() -> None:
                         else:
                             full_q = np.zeros(max(n_j, 1), dtype=np.float64)
                         n_fill = min(q.size, full_q.size)
-                        full_q[:n_fill] = q[:n_fill]
+                        if robot._home_count == 0:
+                            full_q[:n_fill] = q[:n_fill]
+                        else:
+                            full_q[2:] = q
                         if get_coords is not None:
                             crd = get_coords(full_q)
                             if crd is not None and len(crd) > 4:
-                                path_points.append(np.asarray(crd[4]).flatten()[:3].astype(float))
+                                if robot._home_count == 0:
+                                    path_points.append(np.asarray(crd[4]).flatten()[:3].astype(float))
+                                else:
+                                    path_points.append(np.asarray(crd[7]).flatten()[:3].astype(float))
                                 continue
                         if q.size >= 3:
-                            path_points.append(q[:3].astype(float))
+                            if robot._home_count == 0:
+                                path_points.append(q[:3].astype(float))
+                            else:
+                                path_points.append(np.array([float(q[0]), float(q[1]), 0.0]))
                         elif q.size >= 2:
                             path_points.append(np.array([float(q[0]), float(q[1]), 0.0]))
                     if len(path_points) >= 1:
@@ -230,7 +239,10 @@ def main_gui() -> None:
         # Realtime configuration: current (from robot._current_joint_state) vs target
         robot = manager._robot
         n_j = getattr(robot, "_number_of_joints", 0)
-        current = getattr(robot, "_current_configuration", None)[:2]
+        if robot._home_count == 0:
+            current = getattr(robot, "_current_configuration", None)[:2]
+        else:
+            current = getattr(robot, "_current_configuration", None)[2:]
         target = current.copy()
         planner = getattr(robot, "_planner", None)
         if planner is not None and getattr(planner, "is_planned", lambda: False)():

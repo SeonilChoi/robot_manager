@@ -59,11 +59,15 @@ class LittleReader(Robot):
             "max": np.array([ 1.0, 1.5,  1.0,  0.0]),
         }
 
-        self._home_configuration = np.array([0.5, 0.5, -0.5, -0.5])
         self._current_configuration = np.array([0.0, 0.0, 0.0, 0.0])
+        self._home_configuration = np.array([0.5, 0.5, -0.5, -0.5])
+        
+        self._home_count = 0
+        
+        self._control_indexes = [np.array([0, 1]), np.array([2, 3])]
         self._meaningful_joint_indexes = np.array([0, 2, 5, 9, 12, 15, 19])
         self._self_collision_joint_indexes = np.array([0, 1, 11, 2, 12, 4, 14, 5, 15, 6, 16, 7, 17, 8, 18, 9, 19])
-
+        
     def initialize(self) -> None:
         """Create FSM scheduler and RRT planner from config types."""
         if self._scheduler_type == "fsm":
@@ -104,7 +108,10 @@ class LittleReader(Robot):
                     velocity=np.zeros(self._number_of_joints),
                     torque=np.zeros(self._number_of_joints),
                 )
-                joint_command.position = np.concatenate([config, self._current_configuration[2:]])
+                if self._home_count == 0:
+                    joint_command.position = np.concatenate([config, self._current_configuration[2:]])
+                else:
+                    joint_command.position = np.concatenate([self._current_configuration[:2], config])
                 self._scheduler.step()
                 return joint_command
         
@@ -192,8 +199,11 @@ class LittleReader(Robot):
     def _config_collision_circles(self, config: np.ndarray, obstacle_state: List[CircleObstacleState]) -> bool:
         if obstacle_state is None:
             return False
-        joint_positions = np.concatenate([config, self._current_configuration[2:]])
-        position = self.get_joint_coordinates(joint_positions)[4]
+        if self._home_count == 0:
+            joint_positions = np.concatenate([config, self._current_configuration[2:]])
+        else:
+            joint_positions = np.concatenate([self._current_configuration[:2], config])
+        position = self.get_joint_coordinates(joint_positions)[4 if self._home_count == 0 else 7]
         for obs in obstacle_state:
             c, r, axis = np.asarray(obs.position).ravel(), obs.radius, obs.axis
             if self._point_in_circle(position, c, r, axis):
@@ -203,10 +213,14 @@ class LittleReader(Robot):
     def _segment_collision_circles(self, config_a: np.ndarray, config_b: np.ndarray, obstacle_state: List[CircleObstacleState]) -> bool:
         if obstacle_state is None:
             return False
-        joint_positions_a = np.concatenate([config_a, self._current_configuration[2:]])
-        joint_positions_b = np.concatenate([config_b, self._current_configuration[2:]])
-        position_a = self.get_joint_coordinates(joint_positions_a)[4]
-        position_b = self.get_joint_coordinates(joint_positions_b)[4]
+        if self._home_count == 0:
+            joint_positions_a = np.concatenate([config_a, self._current_configuration[2:]])
+            joint_positions_b = np.concatenate([config_b, self._current_configuration[2:]])
+        else:
+            joint_positions_a = np.concatenate([self._current_configuration[:2], config_a])
+            joint_positions_b = np.concatenate([self._current_configuration[:2], config_b])
+        position_a = self.get_joint_coordinates(joint_positions_a)[4 if self._home_count == 0 else 7]
+        position_b = self.get_joint_coordinates(joint_positions_b)[4 if self._home_count == 0 else 7]
         for obs in obstacle_state:
             c, r, axis = np.asarray(obs.position).ravel(), obs.radius, obs.axis
             if self._segment_intersects_circle(position_a, position_b, c, r, axis):
@@ -230,7 +244,10 @@ class LittleReader(Robot):
             t = s / 10
             q = interpolate(a, b, t)
             
-            joint_positions = np.concatenate([q, self._current_configuration[2:]])
+            if self._home_count == 0:
+                joint_positions = np.concatenate([q, self._current_configuration[2:]])
+            else:
+                joint_positions = np.concatenate([self._current_configuration[:2], q])
             obstacle_states = self.get_self_obstacles(joint_positions)
             if self._point_in_self_obstacle(obstacle_states):
                 return True
@@ -239,7 +256,10 @@ class LittleReader(Robot):
     def _config_collision_self(self, config: np.ndarray, obstacle_state: List[SelfObstacleState]) -> bool:
         if obstacle_state is None:
             return False
-        joint_positions = np.concatenate([config, self._current_configuration[2:]])
+        if self._home_count == 0:
+            joint_positions = np.concatenate([config, self._current_configuration[2:]])
+        else:
+            joint_positions = np.concatenate([self._current_configuration[:2], config])
         obstacle_state = self.get_self_obstacles(joint_positions)
         if self._point_in_self_obstacle(obstacle_state):
             return True
@@ -248,8 +268,12 @@ class LittleReader(Robot):
     def _segment_collision_self(self, config_a: np.ndarray, config_b: np.ndarray, obstacle_state: List[SelfObstacleState]) -> bool:
         if obstacle_state is None:
             return False
-        joint_positions_a = np.concatenate([config_a, self._current_configuration[2:]])
-        joint_positions_b = np.concatenate([config_b, self._current_configuration[2:]])
+        if self._home_count == 0:
+            joint_positions_a = np.concatenate([config_a, self._current_configuration[2:]])
+            joint_positions_b = np.concatenate([config_b, self._current_configuration[2:]])
+        else:
+            joint_positions_a = np.concatenate([self._current_configuration[:2], config_a])
+            joint_positions_b = np.concatenate([self._current_configuration[:2], config_b])
         if self._segment_intersects_self(joint_positions_a, joint_positions_b, obstacle_state):
             return True
         return False
@@ -336,20 +360,25 @@ class LittleReader(Robot):
 
         if is_event:
             if current_fsm_state.progress >= 1.0:
-                self._is_homing = False
+                self._home_count += 1
                 self._planner.reset()
                 
             elif current_fsm_state.progress > 0.0 and self._current_joint_state is not None:
+                print(self._home_count)
                 self._planner.set_bounds(
-                    min_bounds=self._configuration_space_bounds["min"][:2],
-                    max_bounds=self._configuration_space_bounds["max"][:2],
+                    min_bounds=self._configuration_space_bounds["min"][self._control_indexes[self._home_count]].flatten(),
+                    max_bounds=self._configuration_space_bounds["max"][self._control_indexes[self._home_count]].flatten(),
                 )
-
+                
                 self._planner.plan(
-                    self._current_configuration.copy()[:2],
-                    self._home_configuration.copy()[:2],
+                    self._current_configuration[self._control_indexes[self._home_count]].flatten(),
+                    self._home_configuration[self._control_indexes[self._home_count]].flatten(),
                     self._current_obstacles
                 )
+
+        if self._home_count == 2:
+            self._home_count = 0
+            self._is_homing = False
 
     def _move(self) -> None:
         pass
