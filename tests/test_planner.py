@@ -21,11 +21,17 @@ except ImportError:
     _HAS_MATPLOTLIB = False
     Axes3D = None
 
-def _point_in_sphere(point: np.ndarray, center: np.ndarray, radius: float) -> bool:
+def _point_in_sphere(
+    point: np.ndarray, center: np.ndarray, radius: float
+) -> bool:
+    """Return True if point is inside the sphere (center, radius)."""
     return float(np.linalg.norm(np.asarray(point) - np.asarray(center))) < radius
 
 
-def _segment_intersects_sphere(a: np.ndarray, b: np.ndarray, center: np.ndarray, radius: float) -> bool:
+def _segment_intersects_sphere(
+    a: np.ndarray, b: np.ndarray, center: np.ndarray, radius: float
+) -> bool:
+    """Return True if segment a-b intersects the sphere."""
     a = np.asarray(a, dtype=np.float64)
     b = np.asarray(b, dtype=np.float64)
     center = np.asarray(center, dtype=np.float64)
@@ -37,7 +43,10 @@ def _segment_intersects_sphere(a: np.ndarray, b: np.ndarray, center: np.ndarray,
     return np.linalg.norm(center - closest) < radius
 
 
-def _config_collision_spheres(config: np.ndarray, obstacle_state) -> bool:
+def _config_collision_spheres(
+    config: np.ndarray, obstacle_state
+) -> bool:
+    """Return True if config (point) is inside any sphere obstacle."""
     if obstacle_state is None:
         return False
     config = np.asarray(config, dtype=np.float64).ravel()
@@ -48,7 +57,10 @@ def _config_collision_spheres(config: np.ndarray, obstacle_state) -> bool:
     return False
 
 
-def _segment_collision_spheres(config_a: np.ndarray, config_b: np.ndarray, obstacle_state) -> bool:
+def _segment_collision_spheres(
+    config_a: np.ndarray, config_b: np.ndarray, obstacle_state
+) -> bool:
+    """Return True if segment config_a–config_b intersects any sphere obstacle."""
     if obstacle_state is None:
         return False
     a = np.asarray(config_a, dtype=np.float64).ravel()
@@ -77,6 +89,8 @@ def _make_joint_state(positions: list) -> np.ndarray:
 
 
 class TestRrtAlgorithm(unittest.TestCase):
+    """Tests for RrtAlgorithm (no threading): success/failure and trajectory shape."""
+
     def test_same_start_goal_success(self):
         rrt = RrtAlgorithm(seed=42)
         start = _make_joint_state([0.0, 0.0])

@@ -9,7 +9,7 @@ from robot_manager.types import FsmAction, FsmState
 
 
 class State(Enum):
-    """FSM states."""
+    """FSM state identifiers."""
     STOPPED = 0
     OPERATING = 1
     HOMING = 2
@@ -37,19 +37,15 @@ TRANSITION_TABLE: dict[tuple[State, Action], State] = {
 
 
 def _get_next_state(current: State, action: Action) -> State:
-    """Return next state from transition table; State.INVALID if no entry.
+    """
+    Return the next FSM state from the transition table.
 
-    Parameters
-    ----------
-    current : State
-        Current FSM state.
-    action : Action
-        Incoming action.
+    Args:
+        current: Current FSM state.
+        action: Incoming action.
 
-    Returns
-    -------
-    State
-        Next state (may be INVALID).
+    Returns:
+        Next state; State.INVALID if the (current, action) pair has no entry.
     """
     return TRANSITION_TABLE.get((current, action), State.INVALID)
 
@@ -60,20 +56,30 @@ def get_next_state(current: State, action: Action) -> State:
 
 
 def _to_action(a: int | Action) -> Action:
-    """Convert int to Action enum if needed."""
+    """Convert an int to Action enum if needed."""
     return a if isinstance(a, Action) else Action(a)
 
 
 class FsmScheduler(Scheduler):
-    """Scheduler that advances FSM state and progress based on actions and time."""
+    """
+    Scheduler that advances FSM state and progress based on actions and time.
+
+    When progress reaches 1.0, state resets to STOPPED. Invalid transitions
+    raise ValueError.
+    """
 
     def __init__(self, dt: float) -> None:
-        """Initialize with time step and state STOPPED."""
+        """
+        Initialize with time step and initial state STOPPED.
+
+        Args:
+            dt: Time step used in step().
+        """
         super().__init__(dt)
         self._state = State.STOPPED
 
     def reset(self) -> None:
-        """Set state to STOPPED and time to 0."""
+        """Set state to STOPPED and internal time to zero."""
         self._state = State.STOPPED
         self._t = 0.0
 
@@ -82,17 +88,18 @@ class FsmScheduler(Scheduler):
         self._t += self._dt
 
     def tick(self, action: FsmAction) -> Tuple[bool, FsmState]:
-        """Apply action, compute next state and progress; raise if transition is INVALID.
+        """
+        Apply the action and return whether state changed and the new FSM state.
 
-        Parameters
-        ----------
-        action : FsmAction
-            Action id and duration.
+        Args:
+            action: Action identifier and duration.
 
-        Returns
-        -------
-        Tuple[bool, FsmState]
-            (changed, fsm_state). changed is True if state or progress reached 1.0.
+        Returns:
+            (changed, fsm_state). changed is True if the state transitioned or
+            progress reached 1.0.
+
+        Raises:
+            ValueError: If the transition (current state, action) is INVALID.
         """
         self._T = action.duration
         t = self._t + self._dt if self._T != 0.0 else 0.0

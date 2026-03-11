@@ -1,23 +1,38 @@
 """Robot manager: loads YAML config, owns robot instance, exposes control/update/home/stop/move."""
 from __future__ import annotations
+
 from typing import List
 
 import yaml
 
-from robot_manager.types import JointState, SphereObstacleState, CircleObstacleState, RobotConfig
 from robot_manager.robots.little_reader import LittleReader
+from robot_manager.types import (
+    CircleObstacleState,
+    JointState,
+    RobotConfig,
+    SphereObstacleState,
+)
+
 
 class RobotManager:
-    """High-level robot interface: load config, initialize robot, run control loop and commands."""
+    """
+    High-level robot interface: load config, initialize robot, run control loop.
+
+    Exposes control(), update(), home(), stop(), move(), and auto() for
+    integration with GUI or external control.
+    """
 
     def __init__(self, config_file: str) -> None:
-        """Load robot config from YAML and initialize the robot.
+        """
+        Load robot config from YAML and initialize the robot.
 
-        Parameters
-        ----------
-        config_file : str
-            Path to YAML file with a 'robot' section (id, number_of_joints,
-            scheduler_type, planner_type, type, optional controller_indexes).
+        Args:
+            config_file: Path to YAML with a 'robot' section (id,
+                number_of_joints, scheduler_type, planner_type, type,
+                optional controller_indexes).
+
+        Raises:
+            ValueError: If config is missing required keys or invalid robot type.
         """
         self._load_configurations(config_file)
         self._initialize()
@@ -54,47 +69,51 @@ class RobotManager:
         self._robot.initialize()
 
     def control(self, status: JointState) -> JointState | None:
-        """Compute and return the next joint command (control output).
+        """
+        Compute and return the next joint command.
 
-        Returns
-        -------
-        JointState | None
-            Command state, or None if not available.
+        Args:
+            status: Current joint feedback (position, velocity, torque).
+
+        Returns:
+            Command state, or None if no command available.
         """
         return self._robot.control(status)
 
-    def update(self, status: JointState, obstacles: List[SphereObstacleState | CircleObstacleState] | None = None) -> None:
-        """Update robot with current joint status and optional obstacle state.
+    def update(
+        self,
+        status: JointState,
+        obstacles: List[SphereObstacleState | CircleObstacleState] | None = None,
+    ) -> None:
+        """
+        Update robot with current joint status and optional obstacles.
 
-        Parameters
-        ----------
-        status : JointState
-            Current joint feedback (position, velocity, torque).
-        obstacles : List[SphereObstacleState | CircleObstacleState] | None
-            Optional obstacle state for planning/collision.
+        Args:
+            status: Current joint feedback.
+            obstacles: Optional obstacle list for planning/collision.
         """
         self._robot.update(status, obstacles)
 
     def home(self) -> None:
-        """Start home motion."""
+        """Start homing motion."""
         self._robot._is_homing = True
         self._robot._is_moving = False
-        self._robot._is_auto   = False
+        self._robot._is_auto = False
 
     def stop(self) -> None:
         """Stop motion."""
         self._robot._is_homing = False
         self._robot._is_moving = False
-        self._robot._is_auto   = False
-        
+        self._robot._is_auto = False
+
     def move(self) -> None:
         """Start or continue move."""
         self._robot._is_homing = False
         self._robot._is_moving = True
-        self._robot._is_auto   = False
+        self._robot._is_auto = False
 
     def auto(self) -> None:
-        """Start operating."""
+        """Start auto (operating) mode."""
         self._robot._is_homing = False
         self._robot._is_moving = False
-        self._robot._is_auto   = True
+        self._robot._is_auto = True

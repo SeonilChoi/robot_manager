@@ -22,12 +22,22 @@ STEP_SIZE = 0.05
 GOAL_THRESHOLD = 0.005
 INTERP_STEPS = 10
 
-CollisionFn = Callable[[np.ndarray, List[SphereObstacleState | CircleObstacleState | SelfObstacleState]], bool]
-SegmentCollisionFn = Callable[[np.ndarray, np.ndarray, List[SphereObstacleState | CircleObstacleState | SelfObstacleState]], bool]
+CollisionFn = Callable[
+    [np.ndarray, List[SphereObstacleState | CircleObstacleState | SelfObstacleState]],
+    bool,
+]
+SegmentCollisionFn = Callable[
+    [np.ndarray, np.ndarray, List[SphereObstacleState | CircleObstacleState | SelfObstacleState]],
+    bool,
+]
 
 
 class RrtAlgorithm:
-    """RRT in an arbitrary Euclidean config space (np.ndarray). No threading."""
+    """
+    RRT in an arbitrary Euclidean config space (np.ndarray). No threading.
+
+    Supports optional collision and segment-collision checkers and config bounds.
+    """
 
     def __init__(
         self,
@@ -39,6 +49,7 @@ class RrtAlgorithm:
         interp_steps: int = INTERP_STEPS,
         seed: int | None = None,
     ) -> None:
+        """Store RRT parameters; bounds and collision checkers are set separately."""
         self._step_size = step_size
         self._goal_bias = goal_bias
         self._goal_threshold = goal_threshold

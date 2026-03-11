@@ -1,5 +1,9 @@
-"""GUI and tests: run GUI with `python tests/test_gui.py`, tests with pytest or `python tests/test_gui.py --test`."""
+"""
+GUI and tests for Robot Manager.
 
+Run GUI: python tests/test_gui.py
+Run tests: pytest tests/test_gui.py -v or python tests/test_gui.py --test
+"""
 import sys
 import unittest
 from pathlib import Path
@@ -13,6 +17,8 @@ CONFIG_PATH = PROJECT_ROOT / "config" / "robot_config.yaml"
 # -----------------------------------------------------------------------------
 
 class TestGui(unittest.TestCase):
+    """Tests for config existence and RobotManager initialization."""
+
     def test_config_exists(self):
         self.assertTrue(CONFIG_PATH.exists(), f"Config not found: {CONFIG_PATH}")
 
@@ -27,6 +33,7 @@ class TestGui(unittest.TestCase):
 # -----------------------------------------------------------------------------
 
 def main_gui() -> None:
+    """Launch the Robot Manager GUI (tkinter + matplotlib)."""
     import tkinter as tk
     from tkinter import ttk, messagebox
     import numpy as np

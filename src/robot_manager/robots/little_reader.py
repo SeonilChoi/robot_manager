@@ -1,29 +1,36 @@
-"""LittleReader robot model: FSM scheduler, RRT planner, placeholder kinematics."""
+"""LittleReader robot model: FSM scheduler, RRT planner, and DH-based kinematics."""
 from __future__ import annotations
 
-from typing import List
+from typing import List, Tuple
 
 import numpy as np
 
 from robot_manager.core.robot import Robot
+from robot_manager.planner.rrt_planner import RrtPlanner
+from robot_manager.scheduler.fsm_scheduler import Action, FsmAction, FsmScheduler
 from robot_manager.types import (
+    CircleObstacleState,
     JointState,
     RobotConfig,
-    SphereObstacleState,
-    CircleObstacleState,
     SelfObstacleState,
+    SphereObstacleState,
 )
-from robot_manager.scheduler.fsm_scheduler import FsmScheduler, Action, FsmAction
-from robot_manager.planner.rrt_planner import RrtPlanner
 from robot_manager.utils.kinematics import forward_kinematics
 from robot_manager.utils.utils import interpolate
 
+
 class LittleReader(Robot):
-    """Robot implementation with FSM scheduler and RRT planner; FK/IK stubs."""
+    """
+    Robot implementation with FSM scheduler and RRT planner.
+
+    Uses Denavit–Hartenberg forward kinematics and a simple 2D IK for left/right
+    arms. Supports circle and self-collision checking for planning.
+    """
 
     def __init__(self, config: RobotConfig) -> None:
+        """Initialize link lengths, joint state, obstacles, and configuration bounds."""
         super().__init__(config)
-        
+
         self._wz = 0.05
         self._l1 = 0.15
         self._l2 = 0.15
@@ -61,15 +68,20 @@ class LittleReader(Robot):
 
         self._current_configuration = np.array([0.0, 0.0, 0.0, 0.0])
         self._home_configuration = np.array([0.5, 0.5, -0.5, -0.5])
-        
         self._home_count = 0
-        
         self._control_indexes = [np.array([0, 1]), np.array([2, 3])]
         self._meaningful_joint_indexes = np.array([0, 2, 5, 9, 12, 15, 19])
-        self._self_collision_joint_indexes = np.array([0, 1, 11, 2, 12, 4, 14, 5, 15, 6, 16, 7, 17, 8, 18, 9, 19])
-        
+        self._self_collision_joint_indexes = np.array(
+            [0, 1, 11, 2, 12, 4, 14, 5, 15, 6, 16, 7, 17, 8, 18, 9, 19]
+        )
+
     def initialize(self) -> None:
-        """Create FSM scheduler and RRT planner from config types."""
+        """
+        Create FSM scheduler and RRT planner from config and set collision checker.
+
+        Raises:
+            ValueError: If scheduler_type or planner_type is not supported.
+        """
         if self._scheduler_type == "fsm":
             self._scheduler = FsmScheduler(0.05)
         else:
@@ -87,8 +99,16 @@ class LittleReader(Robot):
             segment_fn=self._segment_collision_checker,
         )
 
-    def control(self, status) -> JointState | None:
-        """Return next joint command from scheduler/planner or current state."""
+    def control(self, status: JointState) -> JointState | None:
+        """
+        Compute next joint command from scheduler/planner or return current state.
+
+        Args:
+            status: Current joint feedback (unused for command; state is internal).
+
+        Returns:
+            JointState with commanded positions, or current state if no plan active.
+        """
         if self._is_homing:
             self._home()
         elif self._is_moving:
@@ -114,15 +134,21 @@ class LittleReader(Robot):
                     joint_command.position = np.concatenate([self._current_configuration[:2], config])
                 self._scheduler.step()
                 return joint_command
-        
-        return self._current_joint_state
-        
-    def update(self, status: JointState, obstacles: List[SphereObstacleState | CircleObstacleState] | None = None) -> None:
-        """Update internal state from joint feedback. Optional obstacle for planning.
 
-        During a planned motion we do NOT overwrite _current_joint_state from status:
-        it is set in control() from the command we send. So status (which may be
-        from a previous cycle or a stale goal) cannot overwrite and jump to goal.
+        return self._current_joint_state
+
+    def update(
+        self,
+        status: JointState,
+        obstacles: List[SphereObstacleState | CircleObstacleState] | None = None,
+    ) -> None:
+        """
+        Update internal state from joint feedback and optionally merge obstacles.
+
+        Args:
+            status: Current joint feedback; updates position and FK/obstacles.
+            obstacles: Optional list; obstacles with new ids are appended to
+                _current_obstacles (existing ids are not replaced).
         """
         self._current_joint_state.position = status.position.copy()
         self._update_current_joint_coordinates_and_obstacles(self._current_joint_state.position)
@@ -131,28 +157,56 @@ class LittleReader(Robot):
 
         if obstacles is None:
             return
-        
         existing_ids = {o.id for o in self._current_obstacles}
         for obs in obstacles:
-            if obs.id in existing_ids:
-                continue
-            else:
+            if obs.id not in existing_ids:
                 self._current_obstacles.append(obs)
 
     def inverse_kinematics(self, position: np.ndarray) -> np.ndarray:
+        """
+        Compute joint positions for left and right end-effector positions.
+
+        Args:
+            position: (6,) array: [x_l, y_l, z_l, x_r, y_r, z_r] in task space.
+
+        Returns:
+            (number_of_joints,) joint position array.
+        """
         joint_positions = np.zeros(self._number_of_joints)
         joint_positions[0], joint_positions[1] = self._inverse_kinematics(position[0], position[1], position[2], 1)
         joint_positions[2], joint_positions[3] = self._inverse_kinematics(position[3], position[4], position[5], -1)
         return joint_positions
 
-    def get_circle_obstacles(self, joint_positions: np.ndarray) -> List[CircleObstacleState]:
+    def get_circle_obstacles(
+        self, joint_positions: np.ndarray
+    ) -> List[CircleObstacleState]:
+        """
+        Return circle obstacles from current obstacle list.
+
+        Args:
+            joint_positions: Not used; kept for API consistency.
+
+        Returns:
+            List of CircleObstacleState from _current_obstacles.
+        """
         obstacles = []
         for obs in self._current_obstacles:
             if isinstance(obs, CircleObstacleState):
                 obstacles.append(obs)
         return obstacles
 
-    def get_self_obstacles(self, joint_positions: np.ndarray) -> List[SelfObstacleState]:
+    def get_self_obstacles(
+        self, joint_positions: np.ndarray
+    ) -> List[SelfObstacleState]:
+        """
+        Compute self-obstacle spheres from FK at given joint positions.
+
+        Args:
+            joint_positions: Joint positions for FK.
+
+        Returns:
+            List of SelfObstacleState (link spheres with neighbor exclusions).
+        """
         left_dh_params, right_dh_params = self._dh_parameters(joint_positions)
         left_points = forward_kinematics(left_dh_params)
         right_points = forward_kinematics(right_dh_params)
@@ -169,6 +223,15 @@ class LittleReader(Robot):
         return obstacles
 
     def get_joint_coordinates(self, joint_positions: np.ndarray) -> np.ndarray:
+        """
+        Compute 3D coordinates of selected link frames from joint positions.
+
+        Args:
+            joint_positions: Joint positions for FK.
+
+        Returns:
+            (8, 3) array of xyz positions for meaningful joint indexes.
+        """
         left_dh_params, right_dh_params = self._dh_parameters(joint_positions)
         left_points = forward_kinematics(left_dh_params)
         right_points = forward_kinematics(right_dh_params)
@@ -178,7 +241,14 @@ class LittleReader(Robot):
         joint_coordinates[1:] = points[self._meaningful_joint_indexes]
         return joint_coordinates
 
-    def _point_in_circle(self, point: np.ndarray, center: np.ndarray, radius: float, axis: int) -> bool:
+    def _point_in_circle(
+        self,
+        point: np.ndarray,
+        center: np.ndarray,
+        radius: float,
+        axis: int,
+    ) -> bool:
+        """Return True if point lies inside the circle in the plane normal to axis."""
         p = point[axis]
         if p != center[axis]:
             return False
@@ -191,12 +261,28 @@ class LittleReader(Robot):
         else:
             raise ValueError("Invalid axis.")
 
-    def _segment_intersects_circle(self, a: np.ndarray, b: np.ndarray, center: np.ndarray, radius: float, axis: int) -> bool:
-        t = (center[axis] - a[axis]) / (b[axis] - a[axis])
+    def _segment_intersects_circle(
+        self,
+        a: np.ndarray,
+        b: np.ndarray,
+        center: np.ndarray,
+        radius: float,
+        axis: int,
+    ) -> bool:
+        """Return True if segment a-b intersects the circle (plane normal to axis)."""
+        denom = b[axis] - a[axis]
+        if abs(denom) < 1e-12:
+            return False
+        t = (center[axis] - a[axis]) / denom
         p = a + t * (b - a)
-        return np.linalg.norm(p - center) < radius
+        return float(np.linalg.norm(p - center)) < radius
 
-    def _config_collision_circles(self, config: np.ndarray, obstacle_state: List[CircleObstacleState]) -> bool:
+    def _config_collision_circles(
+        self,
+        config: np.ndarray,
+        obstacle_state: List[CircleObstacleState],
+    ) -> bool:
+        """Return True if the config places the end-effector inside any circle obstacle."""
         if obstacle_state is None:
             return False
         if self._home_count == 0:
@@ -210,7 +296,13 @@ class LittleReader(Robot):
                 return True
         return False
 
-    def _segment_collision_circles(self, config_a: np.ndarray, config_b: np.ndarray, obstacle_state: List[CircleObstacleState]) -> bool:
+    def _segment_collision_circles(
+        self,
+        config_a: np.ndarray,
+        config_b: np.ndarray,
+        obstacle_state: List[CircleObstacleState],
+    ) -> bool:
+        """Return True if the segment between config_a and config_b hits a circle obstacle."""
         if obstacle_state is None:
             return False
         if self._home_count == 0:
@@ -227,7 +319,10 @@ class LittleReader(Robot):
                 return True
         return False
 
-    def _point_in_self_obstacle(self, obstacle_states: List[SelfObstacleState]) -> bool:
+    def _point_in_self_obstacle(
+        self, obstacle_states: List[SelfObstacleState]
+    ) -> bool:
+        """Return True if any non-neighbor pair of self-obstacles overlaps."""
         for obs in obstacle_states:
             for i in range(0, 17):
                 if i == obs.id:
@@ -239,7 +334,13 @@ class LittleReader(Robot):
                     return True
         return False
 
-    def _segment_intersects_self(self, a: np.ndarray, b: np.ndarray, obstacle_states: List[SelfObstacleState]) -> bool:
+    def _segment_intersects_self(
+        self,
+        a: np.ndarray,
+        b: np.ndarray,
+        obstacle_states: List[SelfObstacleState],
+    ) -> bool:
+        """Return True if interpolating joint positions from a to b causes self-collision."""
         for s in range(1, 10):
             t = s / 10
             q = interpolate(a, b, t)
@@ -253,7 +354,12 @@ class LittleReader(Robot):
                 return True
         return False
 
-    def _config_collision_self(self, config: np.ndarray, obstacle_state: List[SelfObstacleState]) -> bool:
+    def _config_collision_self(
+        self,
+        config: np.ndarray,
+        obstacle_state: List[SelfObstacleState],
+    ) -> bool:
+        """Return True if config yields self-collision (non-neighbor link overlap)."""
         if obstacle_state is None:
             return False
         if self._home_count == 0:
@@ -265,7 +371,13 @@ class LittleReader(Robot):
             return True
         return False
 
-    def _segment_collision_self(self, config_a: np.ndarray, config_b: np.ndarray, obstacle_state: List[SelfObstacleState]) -> bool:
+    def _segment_collision_self(
+        self,
+        config_a: np.ndarray,
+        config_b: np.ndarray,
+        obstacle_state: List[SelfObstacleState],
+    ) -> bool:
+        """Return True if the segment between config_a and config_b has self-collision."""
         if obstacle_state is None:
             return False
         if self._home_count == 0:
@@ -278,7 +390,14 @@ class LittleReader(Robot):
             return True
         return False
 
-    def _collision_checker(self, config: np.ndarray, obstacle_state: List[SphereObstacleState | CircleObstacleState | SelfObstacleState]) -> bool:
+    def _collision_checker(
+        self,
+        config: np.ndarray,
+        obstacle_state: List[
+            SphereObstacleState | CircleObstacleState | SelfObstacleState
+        ],
+    ) -> bool:
+        """Return True if config is in collision with any circle or self obstacle."""
         circle_obstacles = []
         self_obstacles = []
         for obs in obstacle_state:
@@ -292,7 +411,15 @@ class LittleReader(Robot):
             return True
         return False
 
-    def _segment_collision_checker(self, config_a: np.ndarray, config_b: np.ndarray, obstacle_state: List[SphereObstacleState | CircleObstacleState | SelfObstacleState]) -> bool:
+    def _segment_collision_checker(
+        self,
+        config_a: np.ndarray,
+        config_b: np.ndarray,
+        obstacle_state: List[
+            SphereObstacleState | CircleObstacleState | SelfObstacleState
+        ],
+    ) -> bool:
+        """Return True if segment config_a–config_b collides with circle or self obstacles."""
         circle_obstacles = []
         self_obstacles = []
         for obs in obstacle_state:
@@ -306,7 +433,19 @@ class LittleReader(Robot):
             return True
         return False
 
-    def _inverse_kinematics(self, x: float, y: float, z: float, side: int) -> Tuple[float, float]:
+    def _inverse_kinematics(
+        self, x: float, y: float, z: float, side: int
+    ) -> Tuple[float, float]:
+        """
+        Solve 2D IK for one arm: (x, y, z) -> (joint0, joint1).
+
+        Args:
+            x, y, z: End-effector position in task space.
+            side: 1 for one arm, -1 for the other.
+
+        Returns:
+            (th1, th2) joint angles for that arm.
+        """
         py = y + self._l1 * side
         pz = z - self._wz
         q1 = np.arctan2(py, pz)
@@ -319,7 +458,18 @@ class LittleReader(Robot):
         th2 = q2 * side
         return th1, th2
 
-    def _dh_parameters(self, joint_positions: np.ndarray) -> np.ndarray:
+    def _dh_parameters(
+        self, joint_positions: np.ndarray
+    ) -> Tuple[np.ndarray, np.ndarray]:
+        """
+        Build left and right arm DH parameter matrices from joint positions.
+
+        Args:
+            joint_positions: (4,) joint positions (left then right arm).
+
+        Returns:
+            (left_dh_params, right_dh_params) each (n_links, 4).
+        """
         left_dh_params = np.array([[         0,        0, self._wz,           -np.pi/2],
                                    [self._l1/2,        0,        0,                  0],
                                    [self._l1/2, -np.pi/2,        0, joint_positions[0]],
@@ -344,7 +494,10 @@ class LittleReader(Robot):
         
         return left_dh_params, right_dh_params
 
-    def _update_current_joint_coordinates_and_obstacles(self, joint_positions: np.ndarray) -> None:
+    def _update_current_joint_coordinates_and_obstacles(
+        self, joint_positions: np.ndarray
+    ) -> None:
+        """Update _current_joint_coordinates and self-obstacle positions from FK."""
         left_dh_params, right_dh_params = self._dh_parameters(joint_positions)
         left_points = forward_kinematics(left_dh_params)
         right_points = forward_kinematics(right_dh_params)
@@ -355,7 +508,10 @@ class LittleReader(Robot):
             self._current_obstacles[i].position = points[self._self_collision_joint_indexes[i]]
 
     def _home(self) -> None:
-        is_event, current_fsm_state = self._scheduler.tick(FsmAction(Action.HOME.value, duration=10.0))
+        """Advance homing FSM: tick HOME, update progress, plan to home config when needed."""
+        is_event, current_fsm_state = self._scheduler.tick(
+            FsmAction(Action.HOME.value, duration=10.0)
+        )
         self._current_progress = current_fsm_state.progress
 
         if is_event:
@@ -381,16 +537,20 @@ class LittleReader(Robot):
             self._is_homing = False
 
     def _move(self) -> None:
+        """Move mode: placeholder (no extra behavior beyond planned motion)."""
         pass
 
     def _stop(self) -> None:
+        """Stop motion: send STOP, reset planner and scheduler, clear progress."""
         self._scheduler.tick(FsmAction(Action.STOP.value, duration=0.0))
         self._planner.reset()
         self._scheduler.reset()
         self._current_progress = 0.0
 
     def _auto(self) -> None:
+        """Auto mode: placeholder (no extra behavior)."""
         pass
+
 
 if __name__ == "__main__":
     config = RobotConfig(

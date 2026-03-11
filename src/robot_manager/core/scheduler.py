@@ -1,4 +1,4 @@
-"""Abstract scheduler: time step, reset, step, tick(action) -> (changed, FsmState)."""
+"""Abstract scheduler: time step, reset, step, and tick(action) -> (changed, FsmState)."""
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
@@ -8,15 +8,19 @@ from robot_manager.types import FsmAction, FsmState
 
 
 class Scheduler(ABC):
-    """Abstract scheduler: advances time and returns FSM state for a given action."""
+    """
+    Abstract scheduler: advances time and returns FSM state for a given action.
+
+    Subclasses implement reset, step, and tick to drive state transitions
+    and progress along an action duration.
+    """
 
     def __init__(self, dt: float) -> None:
-        """Set time step and initialize internal time and duration.
+        """
+        Set time step and initialize internal time and duration.
 
-        Parameters
-        ----------
-        dt : float
-            Time step (e.g. seconds) for step().
+        Args:
+            dt: Time step (e.g. seconds) used in step().
         """
         self._dt = dt
         self._T = 0.0
@@ -24,7 +28,7 @@ class Scheduler(ABC):
 
     @abstractmethod
     def reset(self) -> None:
-        """Reset scheduler to initial state and zero time."""
+        """Reset scheduler to initial state and set internal time to zero."""
         ...
 
     @abstractmethod
@@ -34,22 +38,28 @@ class Scheduler(ABC):
 
     @abstractmethod
     def tick(self, action: FsmAction) -> Tuple[bool, FsmState]:
-        """Apply action and return whether state changed and the new FSM state.
+        """
+        Apply the given action and return whether state changed and the new FSM state.
 
-        Parameters
-        ----------
-        action : FsmAction
-            Action id and duration.
+        Args:
+            action: Action identifier and duration.
 
-        Returns
-        -------
-        Tuple[bool, FsmState]
-            (changed, fsm_state) where changed is True if state or progress changed.
+        Returns:
+            A pair (changed, fsm_state). changed is True if the state or
+            progress changed (e.g. transition or progress reached 1.0).
         """
         ...
 
     def _progress_raw(self, t: float) -> float:
-        """Return progress in [0, 1] for current duration; 0 if duration is 0."""
+        """
+        Return progress in [0, 1] for the current action duration.
+
+        Args:
+            t: Current time within the action.
+
+        Returns:
+            Progress in [0, 1], or 0.0 if duration is zero.
+        """
         if self._T == 0.0:
             return 0.0
         return round(t / self._T, 3)

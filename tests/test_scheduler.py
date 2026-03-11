@@ -1,4 +1,8 @@
-"""Tests for FSM scheduler: transition table and FsmScheduler."""
+"""
+Tests for FSM scheduler: transition table and FsmScheduler.
+
+Run with: pytest tests/test_scheduler.py -v
+"""
 import unittest
 
 from robot_manager.scheduler.fsm_scheduler import (
@@ -11,6 +15,8 @@ from robot_manager.scheduler.fsm_scheduler import (
 
 
 class TestGetNextState(unittest.TestCase):
+    """Tests for get_next_state transition table (State x Action -> State)."""
+
     def test_stopped_transitions(self):
         self.assertEqual(get_next_state(State.STOPPED, Action.STOP), State.STOPPED)
         self.assertEqual(get_next_state(State.STOPPED, Action.MOVE), State.OPERATING)
@@ -28,6 +34,8 @@ class TestGetNextState(unittest.TestCase):
 
 
 class TestFsmScheduler(unittest.TestCase):
+    """Tests for FsmScheduler: initial state, step, tick, reset, invalid transition."""
+
     def setUp(self):
         self.dt = 0.1
         self.scheduler = FsmScheduler(self.dt)
