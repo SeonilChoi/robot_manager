@@ -11,11 +11,11 @@ flowchart LR
 
 ```mermaid
 flowchart LR
-  distance --> RrtAlgorithm
-  steer --> RrtAlgorithm
-  interpolate --> RrtAlgorithm
-  quintic_time_scaling --> RrtPlanner
-  interpolate --> RrtPlanner
+  A[distance] --> B[RrtAlgorithm]
+  C[steer] --> B
+  D[interpolate] --> B
+  E[quintic_time_scaling] --> F[RrtPlanner]
+  D --> F
 ```
 
 ---
